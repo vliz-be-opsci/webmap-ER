@@ -9,6 +9,6 @@ describe('Graph Visualizer Model', () => {
     const graph = buildGraphModel('https://example.org/data', links);
     expect(graph.nodes.length).toBeGreaterThanOrEqual(2);
     expect(graph.edges.length).toBe(1);
-    expect(graph.edges[0].color).toBe('var(--er-vital-green)');
+    expect(graph.edges[0].color).toBe('var(--clinical-emerald)');
   });
 });
