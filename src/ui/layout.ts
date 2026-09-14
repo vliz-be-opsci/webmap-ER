@@ -4,9 +4,11 @@ import { createTriagePanel } from './components/triage-panel';
 import { createGraphPanel } from './components/graph-panel';
 import { createExportModal } from './components/export-modal';
 import { createTutorialModal } from './components/tutorial-modal';
+import { createToastContainer } from './components/toast';
 
 export function initLayout(container: HTMLElement, store: AppStore): void {
   container.innerHTML = '';
+  container.appendChild(createToastContainer());
 
   const header = createHeader(
     store,
