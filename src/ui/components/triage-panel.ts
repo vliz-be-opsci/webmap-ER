@@ -2,14 +2,27 @@ import { AppStore } from '../../core/state/store';
 import { evaluateHealthAndGaps } from '../../core/triage/diagnostics';
 import { generateTriageQuestions } from '../../core/triage/questions';
 import { extractResourceLinks } from '../../core/wrx/extractor';
+import { detectSmartMetadata } from '../../core/wrx/smart-detector';
+import { generateSitemapXml } from '../../core/export/sitemap';
 import { showToast } from './toast';
 import {
   iconInfo,
   iconShieldCheck,
   iconChevronLeft,
   iconChevronRight,
-  iconRotateCcw
+  iconRotateCcw,
+  iconSparkles,
+  iconCopy,
+  iconSearch
 } from '../icons';
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 export function createTriagePanel(store: AppStore): HTMLElement {
   const panel = document.createElement('div');
@@ -17,8 +30,9 @@ export function createTriagePanel(store: AppStore): HTMLElement {
 
   function render() {
     const state = store.getState();
-    const report = evaluateHealthAndGaps(state.seedUri, state.links);
-    const questions = generateTriageQuestions(report);
+    const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
+    const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
+    const questions = generateTriageQuestions(report, activeFilter);
     const activeIdx = Math.min(state.ui.activeQuestionIndex, Math.max(0, questions.length - 1));
     const currentQ = questions[activeIdx];
 
@@ -70,7 +84,21 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         </div>
       </section>
 
-      <!-- Seed Resource Input Bar -->
+      <!-- Pattern Matrix Strip -->
+      <div class="pattern-matrix-strip" role="group" aria-label="Radical Transparency 8-Pattern Matrix">
+        ${report.patterns.map(p => {
+          const isActive = state.activePatternId === p.patternId;
+          const badgeClass = p.status === 'SATISFIED' ? 'badge-satisfied' : p.status === 'PARTIAL' ? 'badge-partial' : 'badge-unmet';
+          return `
+            <button class="pattern-badge ${isActive ? 'active' : ''} ${badgeClass}" data-pattern="${p.patternId}" title="${p.patternName} (${p.status})">
+              <span class="pattern-badge-id">${p.patternId}</span>
+              <span class="pattern-status-dot"></span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Target Seed Resource Input Bar -->
       <section class="seed-card" aria-label="Seed Resource Diagnostic Input">
         <div class="seed-header">
           <label for="seed-uri-input" class="hud-label" style="margin-bottom: 0;">TARGET SEED RESOURCE URI</label>
@@ -90,6 +118,60 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           </button>
         </div>
       </section>
+
+      <!-- Smart Suggestions Strip -->
+      ${report.smartInference && (
+        (report.smartInference.detectedProfiles && report.smartInference.detectedProfiles.length > 0) ||
+        (report.smartInference.detectedPids && report.smartInference.detectedPids.length > 0) ||
+        (report.smartInference.detectedApis && report.smartInference.detectedApis.length > 0)
+      ) ? `
+        <div class="smart-suggestions-strip">
+          <div class="smart-suggestions-header">
+            <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
+            <span class="hud-label" style="margin-bottom: 0;">SMART LINKED DATA INFERENCES</span>
+          </div>
+          <div class="smart-suggestions-chips">
+            ${(report.smartInference.detectedProfiles || []).map(p => `
+              <button class="smart-suggestion-chip" data-rel="profile" data-uri="${p.uri}">
+                <span>Adopt Profile: <strong>${p.label}</strong></span>
+              </button>
+            `).join('')}
+            ${(report.smartInference.detectedPids || []).map(p => `
+              <button class="smart-suggestion-chip" data-rel="cite-as" data-uri="${p.uri}">
+                <span>Adopt PID: <strong>${p.label}</strong></span>
+              </button>
+            `).join('')}
+            ${(report.smartInference.detectedApis || []).map(a => `
+              <button class="smart-suggestion-chip" data-rel="service-desc" data-uri="${a.endpoint}">
+                <span>Link API: <strong>${a.label}</strong></span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- PT-06 Hostwide Sitemap Card -->
+      ${state.activePatternId === 'PT-06' ? `
+        <div class="sitemap-preview-card">
+          <div class="card-header-meta">
+            <span class="card-step-badge">PATTERN PT-06</span>
+            <span class="hud-condition-badge status-healthy">SITEMAP HARVESTING</span>
+          </div>
+          <h3 class="card-title">Hostwide Discovery: sitemap.xml Preview</h3>
+          <p class="card-prompt">
+            Radical Transparency Pattern 06 prescribes embedding <code>&lt;xhtml:link&gt;</code> signposting relations directly into your XML sitemaps to allow crawlers to harvest thousands of datasets in a single crawl pass.
+          </p>
+          <div class="code-preview-container">
+            <pre class="code-preview"><code id="sitemap-xml-content">${escapeHtml(generateSitemapXml(state.seedUri, state.links))}</code></pre>
+          </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button id="btn-copy-sitemap" class="btn btn-secondary">
+              ${iconCopy('', 14)}
+              <span>Copy sitemap.xml</span>
+            </button>
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Active Questionnaire or Healthy State -->
       ${currentQ ? `
@@ -134,6 +216,11 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
               Prescribe
             </button>
+            ${currentQ.id === 'q-proactive-missing-ld' ? `
+              <button id="btn-crawl-metadata" class="btn btn-secondary" style="border-radius: 0; padding: 0.5rem 0.85rem;">
+                ${iconSearch('', 14)} Crawl Metadata
+              </button>
+            ` : ''}
           </div>
 
           <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
@@ -160,18 +247,53 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             All Vital Relations Prescribed!
           </h3>
           <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-            Your digital asset conforms to basic Radical Transparency specifications. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
+            Your digital asset conforms to Radical Transparency specifications. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
           </p>
         </div>
       `}
     `;
 
-    // Wire events
+    // Wire Pattern Matrix Clicks
+    panel.querySelectorAll('.pattern-badge').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = btn.getAttribute('data-pattern');
+        if (!pid) return;
+        if (state.activePatternId === pid) {
+          store.setActivePatternId('ALL');
+        } else {
+          store.setActivePatternId(pid);
+        }
+      });
+    });
+
+    // Wire Smart Suggestions Chips
+    panel.querySelectorAll('.smart-suggestion-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rel = btn.getAttribute('data-rel');
+        const uri = btn.getAttribute('data-uri');
+        if (rel && uri) {
+          store.answerQuestion('smart-inference', rel, uri);
+          showToast('Smart Suggestion Adopted', `Prescribed ${rel} -> ${uri}`, 'success');
+        }
+      });
+    });
+
+    // Wire Sitemap Copy Button
+    panel.querySelector('#btn-copy-sitemap')?.addEventListener('click', () => {
+      const xml = generateSitemapXml(state.seedUri, state.links);
+      navigator.clipboard?.writeText(xml);
+      showToast('Copied', 'Sitemap XML copied to clipboard.', 'success');
+    });
+
+    // Wire Diagnosis / wrx Extraction
     panel.querySelector('#btn-extract')?.addEventListener('click', async () => {
       const input = (panel.querySelector('#seed-uri-input') as HTMLInputElement)?.value.trim();
       if (!input) return;
       store.setSeedUri(input);
       const res = await extractResourceLinks(input);
+      const inference = detectSmartMetadata(res);
+      store.setSmartInference(inference);
+
       if (res.corsBlocked) {
         showToast(
           'CORS Inspection Notice',
@@ -181,8 +303,30 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         );
       } else {
         store.setLinks(res.links);
-        showToast('Diagnosis Complete', `Extracted ${res.links.length} relations via wrx.`, 'success');
+        showToast(
+          'Diagnosis Complete',
+          `Extracted ${res.links.length} relations via wrx. Linked data: ${inference.hasLinkedData ? 'Detected' : 'Not found'}.`,
+          'success'
+        );
       }
+    });
+
+    // Wire Proactive Secondary Crawl
+    panel.querySelector('#btn-crawl-metadata')?.addEventListener('click', async () => {
+      const val = (panel.querySelector('#custom-uri-input') as HTMLInputElement)?.value.trim();
+      if (!val) {
+        showToast('Input Required', 'Please enter a metadata URL to crawl.', 'warning');
+        return;
+      }
+      showToast('Crawling External Metadata', `Querying ${val}...`, 'info');
+      const res = await extractResourceLinks(val);
+      if (res.links.length > 0) {
+        store.setLinks([...state.links, ...res.links]);
+      }
+      const inference = detectSmartMetadata(res);
+      store.setSmartInference(inference);
+      store.answerQuestion('q-proactive-missing-ld', 'describedby', val);
+      showToast('External Crawl Complete', `Linked metadata record prescribed with ${res.links.length} secondary links.`, 'success');
     });
 
     panel.querySelectorAll('.btn-prescription-opt').forEach(btn => {

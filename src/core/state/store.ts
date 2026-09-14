@@ -1,8 +1,9 @@
 import { DiscoveredLink } from '../wrx/types';
+import { SmartInferenceResult } from '../wrx/smart-detector';
 
 export interface UserInteractionEvent {
   id: string;
-  type: 'SET_SEED_URI' | 'ANSWER_QUESTION' | 'ADD_LINK' | 'REMOVE_LINK' | 'SET_VIEW_MODE';
+  type: 'SET_SEED_URI' | 'ANSWER_QUESTION' | 'ADD_LINK' | 'REMOVE_LINK' | 'SET_VIEW_MODE' | 'SET_ACTIVE_PATTERN';
   timestamp: number;
   payload: any;
 }
@@ -13,6 +14,7 @@ export interface AppState {
   seedUri: string;
   activePatternId: string;
   links: DiscoveredLink[];
+  smartInference?: SmartInferenceResult;
   history: UserInteractionEvent[];
   ui: {
     viewMode: 'balanced' | 'extended-triage' | 'extended-graph';
@@ -100,6 +102,24 @@ export class AppStore {
 
   public setViewMode(mode: 'balanced' | 'extended-triage' | 'extended-graph'): void {
     this.state.ui.viewMode = mode;
+    this.notify();
+  }
+
+  public setActivePatternId(patternId: string): void {
+    const event: UserInteractionEvent = {
+      id: crypto.randomUUID(),
+      type: 'SET_ACTIVE_PATTERN',
+      timestamp: Date.now(),
+      payload: { patternId }
+    };
+    this.state.activePatternId = patternId;
+    this.state.ui.activeQuestionIndex = 0;
+    this.state.history.push(event);
+    this.notify();
+  }
+
+  public setSmartInference(inference: SmartInferenceResult | undefined): void {
+    this.state.smartInference = inference;
     this.notify();
   }
 

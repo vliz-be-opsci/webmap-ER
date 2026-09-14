@@ -76,3 +76,12 @@ export function iconCheck(cls?: string, size?: number): string {
 export function iconClose(cls?: string, size?: number): string {
   return svgWrap('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', cls, size);
 }
+
+export function iconSparkles(cls?: string, size?: number): string {
+  return svgWrap('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', cls, size);
+}
+
+export function iconSearch(cls?: string, size?: number): string {
+  return svgWrap('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', cls, size);
+}
+
