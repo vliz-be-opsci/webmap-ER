@@ -1,9 +1,12 @@
 import './style.css';
 import { AppStore } from './core/state/store';
 import { decodeStateFromFragment } from './core/state/fragment';
+import { getInitialTheme } from './core/theme/theme';
 import { initLayout } from './ui/layout';
 
 async function bootstrap() {
+  getInitialTheme();
+
   const root = document.getElementById('app');
   if (!root) return;
 
