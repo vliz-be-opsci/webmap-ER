@@ -156,7 +156,7 @@ function getPatternSpecificQuestions(patternId: string, report: DiagnosticReport
           citeOptions.push({
             label: `${p.label} (Auto-detected)`,
             uri: p.uri,
-            description: `Auto-detected ${p.scheme.toUpperCase()} identifier`
+            description: `Auto-detected ${(p.scheme || 'PID').toUpperCase()} identifier`
           });
         });
       }
@@ -194,10 +194,11 @@ function getPatternSpecificQuestions(patternId: string, report: DiagnosticReport
       const apiOptions: QuestionOption[] = [];
       if (inference?.detectedApis && inference.detectedApis.length > 0) {
         inference.detectedApis.forEach(a => {
+          const ep = a.endpoint || a.serviceDesc || safeUrl(report.targetUrl, '/api');
           apiOptions.push({
-            label: `${a.label} (Auto-detected)`,
-            uri: a.endpoint,
-            description: `Auto-detected API (${a.type})`
+            label: `${a.label || 'API'} (Auto-detected)`,
+            uri: ep,
+            description: `Auto-detected API (${a.type || a.apiType})`
           });
         });
       }
@@ -340,7 +341,7 @@ function buildQuestionForRel(
           citeOptions.push({
             label: `${p.label} (Auto-detected)`,
             uri: p.uri,
-            description: `Auto-detected ${p.scheme.toUpperCase()} identifier`
+            description: `Auto-detected ${(p.scheme || 'PID').toUpperCase()} identifier`
           });
         });
       }
@@ -362,10 +363,11 @@ function buildQuestionForRel(
       const apiOptions: QuestionOption[] = [];
       if (inference?.detectedApis && inference.detectedApis.length > 0) {
         inference.detectedApis.forEach(a => {
+          const ep = a.endpoint || a.serviceDesc || safeUrl(report.targetUrl, '/api');
           apiOptions.push({
-            label: `${a.label} (Auto-detected)`,
-            uri: a.endpoint,
-            description: `Auto-detected API (${a.type})`
+            label: `${a.label || 'API'} (Auto-detected)`,
+            uri: ep,
+            description: `Auto-detected API (${a.type || a.apiType})`
           });
         });
       }

@@ -13,6 +13,7 @@ export interface RTGap {
 export interface PatternConformity {
   patternId: string;
   name: string;
+  patternName: string;
   status: 'SATISFIED' | 'PARTIAL' | 'UNSATISFIED';
   presentRelations: string[];
   missingRequired: string[];
@@ -58,6 +59,7 @@ export function evaluateHealthAndGaps(
     return {
       patternId: def.id,
       name: def.name,
+      patternName: def.name,
       status,
       presentRelations: present,
       missingRequired: missingReq,

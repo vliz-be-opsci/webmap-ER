@@ -24,7 +24,7 @@ describe('Multi-Pattern Questionnaire Generator', () => {
         { uri: 'https://w3id.org/ro/crate/1.1', label: 'RO-Crate 1.1', source: 'jsonld', confidence: 'high' }
       ],
       detectedPids: [
-        { uri: 'https://doi.org/10.1234/sample-pid', label: 'DOI 10.1234/sample-pid', scheme: 'doi' }
+        { uri: 'https://doi.org/10.1234/sample-pid', label: 'DOI 10.1234/sample-pid', source: 'jsonld', confidence: 'high', scheme: 'doi' }
       ],
       detectedApis: [],
       recommendedPatternFocus: 'PT-01',

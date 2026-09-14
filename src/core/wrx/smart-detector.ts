@@ -5,6 +5,7 @@ export interface DetectedItem {
   label: string;
   source: string;
   confidence: 'high' | 'medium';
+  scheme?: string;
 }
 
 export interface DetectedApi {
@@ -12,6 +13,9 @@ export interface DetectedApi {
   serviceDoc?: string;
   apiType: string;
   source: string;
+  endpoint?: string;
+  label?: string;
+  type?: string;
 }
 
 export interface SmartInferenceResult {
@@ -52,6 +56,9 @@ export function detectSmartMetadata(result: ExtractionResult): SmartInferenceRes
     if (relLower === 'service-desc') {
       detectedApis.push({
         serviceDesc: link.target,
+        endpoint: link.target,
+        label: 'OpenAPI / Service Description',
+        type: link.type || 'OpenAPI / Machine API',
         apiType: link.type || 'OpenAPI / Machine API',
         source: 'http-link-header:service-desc'
       });
@@ -60,6 +67,9 @@ export function detectSmartMetadata(result: ExtractionResult): SmartInferenceRes
     if (relLower === 'service-doc') {
       detectedApis.push({
         serviceDoc: link.target,
+        endpoint: link.target,
+        label: 'API Documentation',
+        type: 'HTML Documentation',
         apiType: 'HTML Documentation',
         source: 'http-link-header:service-doc'
       });
@@ -184,6 +194,9 @@ function inspectJsonLdEntity(
     if (endpoint && typeof endpoint === 'string') {
       apis.push({
         serviceDesc: endpoint,
+        endpoint,
+        label: 'DataService / API',
+        type: 'DataService / API',
         apiType: 'DataService / API',
         source: 'embedded-jsonld:@type'
       });
@@ -197,7 +210,7 @@ function inspectJsonLdEntity(
       const match = candidate.match(DOI_REGEX);
       if (match) {
         const doiUri = candidate.startsWith('http') ? candidate : `https://doi.org/${match[0]}`;
-        addPid(pids, doiUri, `DOI: ${match[0]}`, 'embedded-jsonld:identifier');
+        addPid(pids, doiUri, `DOI: ${match[0]}`, 'embedded-jsonld:identifier', 'doi');
       }
     }
   }
@@ -209,9 +222,9 @@ function addProfile(list: DetectedItem[], uri: string, label: string, source: st
   }
 }
 
-function addPid(list: DetectedItem[], uri: string, label: string, source: string) {
+function addPid(list: DetectedItem[], uri: string, label: string, source: string, scheme = 'doi') {
   if (!list.some(p => p.uri === uri)) {
-    list.push({ uri, label, source, confidence: 'high' });
+    list.push({ uri, label, source, confidence: 'high', scheme });
   }
 }
 

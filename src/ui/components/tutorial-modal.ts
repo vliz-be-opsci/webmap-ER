@@ -90,7 +90,7 @@ export function createTutorialModal(
         </div>
 
         <div class="modal-body" style="padding: 1.5rem; line-height: 1.55; font-size: 0.875rem; color: var(--text-primary);">
-          <div class="tour-card">
+          <div class="tutorial-steps tour-card">
             <div style="color: ${step.iconColor}; flex-shrink: 0; margin-top: 2px;">
               ${step.iconSvg}
             </div>
