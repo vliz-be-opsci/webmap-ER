@@ -52,6 +52,6 @@ export function createGraphPanel(store: AppStore): HTMLElement {
   });
 
   store.subscribe(render);
-  setTimeout(render, 50);
+  render();
   return panel;
 }

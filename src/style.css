@@ -24,57 +24,7 @@
 }
 
 /* ==========================================================================
-   Semantic Theme: Light (Clinical Daylight / Lab Paper)
-   ========================================================================== */
-[data-theme="light"] {
-  --surface-canvas: #f8fafc;
-  --surface-panel: #ffffff;
-  --surface-card: #ffffff;
-  --surface-subtle: #f1f5f9;
-  --surface-hover: #e2e8f0;
-  --surface-active: #cbd5e1;
-  --surface-dialog: #ffffff;
-  --surface-code: #0f172a;
-  --surface-code-card: #f8fafc;
-
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --border-focus: #2563eb;
-
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --text-code: #1e293b;
-  --text-code-inverted: #f8fafc;
-
-  /* Clinical Signal Tokens (WCAG AA Checked) */
-  --clinical-emerald: #059669;
-  --clinical-emerald-bg: rgba(5, 150, 105, 0.08);
-  --clinical-emerald-border: rgba(5, 150, 105, 0.25);
-
-  --clinical-amber: #d97706;
-  --clinical-amber-bg: rgba(217, 119, 6, 0.08);
-  --clinical-amber-border: rgba(217, 119, 6, 0.25);
-
-  --clinical-crimson: #dc2626;
-  --clinical-crimson-bg: rgba(220, 38, 38, 0.08);
-  --clinical-crimson-border: rgba(220, 38, 38, 0.25);
-
-  --clinical-cobalt: #2563eb;
-  --clinical-cobalt-bg: rgba(37, 99, 235, 0.08);
-  --clinical-cobalt-border: rgba(37, 99, 235, 0.25);
-
-  --clinical-indigo: #4f46e5;
-  --clinical-indigo-bg: rgba(79, 70, 229, 0.08);
-  --clinical-indigo-border: rgba(79, 70, 229, 0.25);
-
-  --canvas-grid-dot: rgba(15, 23, 42, 0.09);
-  --graph-canvas-bg: #f8fafc;
-  --badge-bg: #e2e8f0;
-}
-
-/* ==========================================================================
-   Semantic Theme: Dark (Precision Workstation / Lab Console)
+   Semantic Theme: Dark (Default Workstation / Lab Console)
    ========================================================================== */
 :root, [data-theme="dark"] {
   --surface-canvas: #090d16;
@@ -121,6 +71,56 @@
   --canvas-grid-dot: rgba(255, 255, 255, 0.08);
   --graph-canvas-bg: #070b14;
   --badge-bg: #1e293b;
+}
+
+/* ==========================================================================
+   Semantic Theme: Light (Clinical Daylight / Lab Paper)
+   ========================================================================== */
+:root[data-theme="light"], [data-theme="light"] {
+  --surface-canvas: #f8fafc;
+  --surface-panel: #ffffff;
+  --surface-card: #ffffff;
+  --surface-subtle: #f1f5f9;
+  --surface-hover: #e2e8f0;
+  --surface-active: #cbd5e1;
+  --surface-dialog: #ffffff;
+  --surface-code: #0f172a;
+  --surface-code-card: #f8fafc;
+
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-focus: #2563eb;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-code: #1e293b;
+  --text-code-inverted: #f8fafc;
+
+  /* Clinical Signal Tokens (WCAG AA Checked) */
+  --clinical-emerald: #059669;
+  --clinical-emerald-bg: rgba(5, 150, 105, 0.08);
+  --clinical-emerald-border: rgba(5, 150, 105, 0.25);
+
+  --clinical-amber: #d97706;
+  --clinical-amber-bg: rgba(217, 119, 6, 0.08);
+  --clinical-amber-border: rgba(217, 119, 6, 0.25);
+
+  --clinical-crimson: #dc2626;
+  --clinical-crimson-bg: rgba(220, 38, 38, 0.08);
+  --clinical-crimson-border: rgba(220, 38, 38, 0.25);
+
+  --clinical-cobalt: #2563eb;
+  --clinical-cobalt-bg: rgba(37, 99, 235, 0.08);
+  --clinical-cobalt-border: rgba(37, 99, 235, 0.25);
+
+  --clinical-indigo: #4f46e5;
+  --clinical-indigo-bg: rgba(79, 70, 229, 0.08);
+  --clinical-indigo-border: rgba(79, 70, 229, 0.25);
+
+  --canvas-grid-dot: rgba(15, 23, 42, 0.09);
+  --graph-canvas-bg: #f8fafc;
+  --badge-bg: #e2e8f0;
 }
 
 /* ==========================================================================
