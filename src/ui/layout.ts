@@ -3,7 +3,7 @@ import { createHeader } from './components/header';
 import { createTriagePanel } from './components/triage-panel';
 import { createGraphPanel } from './components/graph-panel';
 import { createExportModal } from './components/export-modal';
-import { createTutorialModal } from './components/tutorial-modal';
+import { createSpotlightTour } from './components/spotlight-tour';
 import { createToastContainer, showToast } from './components/toast';
 import { SAMPLE_PRESETS } from '../core/rt/presets';
 
@@ -13,7 +13,7 @@ export function initLayout(container: HTMLElement, store: AppStore): void {
 
   const header = createHeader(
     store,
-    () => openModal(createTutorialModal(
+    () => openModal(createSpotlightTour(
       () => closeModal(),
       () => {
         const preset = SAMPLE_PRESETS[0];

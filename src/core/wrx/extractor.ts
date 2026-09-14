@@ -66,9 +66,27 @@ export async function extractResourceLinks(
     const parser = new DOMParser();
     const doc = parser.parseFromString(bodyText, 'text/html');
 
+    const IGNORED_HTML_RELS = new Set([
+      'stylesheet',
+      'alternate stylesheet',
+      'icon',
+      'shortcut icon',
+      'apple-touch-icon',
+      'preload',
+      'prefetch',
+      'dns-prefetch',
+      'preconnect',
+      'prerender',
+      'manifest',
+      'mask-icon',
+      'modulepreload'
+    ]);
+
     const linkElements = doc.querySelectorAll('link[rel][href]');
     linkElements.forEach(el => {
-      const rel = el.getAttribute('rel') || '';
+      const rel = (el.getAttribute('rel') || '').trim();
+      if (IGNORED_HTML_RELS.has(rel.toLowerCase())) return;
+
       const href = el.getAttribute('href') || '';
       const type = el.getAttribute('type') || undefined;
       const profile = el.getAttribute('profile') || undefined;

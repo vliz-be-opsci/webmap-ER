@@ -625,6 +625,59 @@ body {
 }
 
 /* ==========================================================================
+   Interactive UI Spotlight Tour
+   ========================================================================== */
+.spotlight-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+.spotlight-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 15, 29, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+
+.spotlight-target-box {
+  position: fixed;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 9999px rgba(10, 15, 29, 0.72), 0 0 0 2px var(--clinical-cobalt), 0 0 16px rgba(37, 99, 235, 0.45);
+  pointer-events: none;
+  z-index: 10000;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.spotlight-card {
+  position: fixed;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg), 0 8px 32px rgba(0, 0, 0, 0.35);
+  z-index: 10001;
+  overflow: hidden;
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.spotlight-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.spotlight-card-body {
+  padding: 1.125rem 1.25rem;
+}
+
+/* ==========================================================================
    PT-06 Sitemap Preview Card
    ========================================================================== */
 .sitemap-preview-card {
