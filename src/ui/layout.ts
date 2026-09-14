@@ -4,7 +4,8 @@ import { createTriagePanel } from './components/triage-panel';
 import { createGraphPanel } from './components/graph-panel';
 import { createExportModal } from './components/export-modal';
 import { createTutorialModal } from './components/tutorial-modal';
-import { createToastContainer } from './components/toast';
+import { createToastContainer, showToast } from './components/toast';
+import { SAMPLE_PRESETS } from '../core/rt/presets';
 
 export function initLayout(container: HTMLElement, store: AppStore): void {
   container.innerHTML = '';
@@ -12,7 +13,24 @@ export function initLayout(container: HTMLElement, store: AppStore): void {
 
   const header = createHeader(
     store,
-    () => openModal(createTutorialModal(() => closeModal())),
+    () => openModal(createTutorialModal(
+      () => closeModal(),
+      () => {
+        const preset = SAMPLE_PRESETS[0];
+        if (preset) {
+          store.setSeedUri(preset.uris.resource);
+          const links = Object.entries(preset.uris)
+            .filter(([key]) => key !== 'resource')
+            .map(([key, uri]) => ({
+              target: uri,
+              rel: key === 'metadata' ? 'describedby' : key === 'cite_as' ? 'cite-as' : key,
+              source: 'link-header' as const
+            }));
+          store.setLinks(links);
+          showToast('Preset Jumpstart', `Launched ${preset.name} into clinical triage.`, 'success');
+        }
+      }
+    )),
     () => openModal(createExportModal(store, () => closeModal()))
   );
 

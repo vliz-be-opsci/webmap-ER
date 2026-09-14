@@ -585,6 +585,46 @@ body {
 }
 
 /* ==========================================================================
+   5-Step Guided Tour Modal
+   ========================================================================== */
+.tour-step-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+.tour-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 0;
+}
+
+.tour-step-dot.active {
+  background: var(--clinical-cobalt);
+  border-color: var(--clinical-cobalt);
+  width: 24px;
+  border-radius: var(--radius-xs);
+}
+
+.tour-card {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
+  min-height: 170px;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* ==========================================================================
    PT-06 Sitemap Preview Card
    ========================================================================== */
 .sitemap-preview-card {
