@@ -54,9 +54,25 @@ export interface SmartInferenceResult {
   detectedPids: DetectedItem[];
   detectedApis: Array<{ serviceDesc?: string; serviceDoc?: string; source: string }>;
   recommendedPatternFocus: 'PT-01' | 'PT-05' | 'PT-06' | 'PT-07' | 'ALL';
+  hasLinkedData: boolean;
   didacticHint?: string;
 }
 ```
+
+### 2.4 Proactive Linked-Data Probing & Variant Discovery (PT-03 Content Negotiation)
+1. **Missing Linked Data Probe:**
+   - When a seed URI returns zero machine-readable linked data (no RDF headers, no `<link rel="describedby">`, no embedded `<script type="application/ld+json">`):
+   - The diagnostic engine flags `hasLinkedData: false`.
+   - The triage engine surfaces an immediate proactive inquiry:
+     *"No machine-readable linked data was discovered at this endpoint. Does structured metadata or an RDF record exist at a separate URI (e.g., a .jsonld file, an API endpoint, or an alternate URL)?"*
+   - When the user enters this secondary URI:
+     - `webmap-ER` prescribes `resource -> rel="describedby" -> secondary_uri`.
+     - `wrx` executes a secondary inspection on the provided metadata URI to extract embedded profiles, PIDs, and schemas, resolving `PT-01` and `PT-04` dynamically.
+2. **Alternate Format & Variant Probing (PT-03):**
+   - The triage agent asks smart questions about other URIs the user might have:
+     *"Does this resource offer alternate data representations (e.g. Turtle (.ttl), JSON-LD (.jsonld), NetCDF, GeoJSON, or CSV)?"*
+   - Answering with alternate URIs configures conforming `PT-03 Content Negotiation Menu` relations:
+     `Link: <<variant_uri>>; rel="alternate"; type="..."; profile="..."`
 
 ---
 
