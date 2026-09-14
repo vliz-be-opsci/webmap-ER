@@ -29,7 +29,7 @@ export async function decodeStateFromFragment(hash: string): Promise<AppState | 
     if (prefix === 'gz' && typeof DecompressionStream !== 'undefined') {
       const ds = new DecompressionStream('deflate-raw');
       const writer = ds.writable.getWriter();
-      await writer.write(bytes);
+      await writer.write(bytes as BufferSource);
       await writer.close();
       const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
       const json = new TextDecoder().decode(decompressedBuffer);
