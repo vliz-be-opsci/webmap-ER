@@ -49,5 +49,25 @@ describe('State Store & Fragment Persistence', () => {
       evidence: 'Extracted from /robots.txt'
     });
   });
+
+  it('records provenance when active pattern is changed', () => {
+    const store = new AppStore();
+    store.setIntakeSummary({
+      recommendedPatternId: 'PT-01',
+      confidence: 'medium',
+      scorePercent: 70,
+      rationale: 'Baseline',
+      skippedCount: 0,
+      totalCount: 1,
+      auditLog: []
+    });
+
+    store.setActivePatternId('PT-05');
+    const state = store.getState();
+    expect(state.activePatternId).toBe('PT-05');
+    expect(state.intakeSummary?.recommendedPatternId).toBe('PT-05');
+    expect(state.provenanceHistory.some(p => p.rel === 'pattern-focus' && p.targetUri === 'PT-05')).toBe(true);
+  });
 });
+
 

@@ -7,7 +7,7 @@ import { probeHostwideResource } from '../../core/wrx/host-prober';
 import { classifyResourcePattern } from '../../core/wrx/pattern-classifier';
 import { buildIntakeQuestions } from '../../core/triage/intake-model';
 import { generateSitemapXml } from '../../core/export/sitemap';
-import { RT_PATTERNS } from '../../core/rt/patterns';
+import { RT_PATTERNS, getPatternById } from '../../core/rt/patterns';
 import { showToast } from './toast';
 import {
   iconInfo,
@@ -54,6 +54,44 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         : 'var(--clinical-crimson)';
 
     const intakeSummary = state.intakeSummary;
+
+    // Build pattern-specific relations for Provenance Review Matrix
+    const activePatternDef = getPatternById(state.activePatternId);
+    const patternRelations: Array<{ rel: string; isRequired: boolean; isPresent: boolean; targetUri: string; source: string; evidence?: string }> = [];
+
+    if (activePatternDef) {
+      const allExpectedRels = [
+        ...activePatternDef.requiredRelations.map(r => ({ rel: r, isRequired: true })),
+        ...activePatternDef.recommendedRelations.map(r => ({ rel: r, isRequired: false }))
+      ];
+
+      for (const expected of allExpectedRels) {
+        const found = state.links.find(l => l.rel.toLowerCase() === expected.rel.toLowerCase());
+        const prov = state.provenanceHistory.find(p => p.rel.toLowerCase() === expected.rel.toLowerCase());
+        patternRelations.push({
+          rel: expected.rel,
+          isRequired: expected.isRequired,
+          isPresent: !!found,
+          targetUri: found ? found.target : '(Unprescribed)',
+          source: prov ? prov.source : found ? found.source : 'UNRESOLVED',
+          evidence: prov?.evidence
+        });
+      }
+    }
+
+    // Also include other prescribed relations not in pattern definition
+    state.provenanceHistory.forEach(prov => {
+      if (prov.rel !== 'pattern-focus' && !patternRelations.some(pr => pr.rel.toLowerCase() === prov.rel.toLowerCase())) {
+        patternRelations.push({
+          rel: prov.rel,
+          isRequired: false,
+          isPresent: true,
+          targetUri: prov.targetUri,
+          source: prov.source,
+          evidence: prov.evidence
+        });
+      }
+    });
 
     panel.innerHTML = `
       <!-- Clinical Telemetry HUD -->
@@ -131,7 +169,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           <div class="provenance-audit-header">
             <div class="provenance-audit-title">
               <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
-              <span>Deduced Pattern: <strong>${intakeSummary.recommendedPatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
+              <span>Active Pattern: <strong>${state.activePatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
             </div>
             <button id="btn-toggle-review" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem;">
               ${state.ui.showIntakeReview ? 'Hide Review' : 'View Provenance & Review'}
@@ -156,11 +194,11 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         <div class="provenance-review-matrix">
           <div class="card-header-meta">
             <span class="card-step-badge">INTAKE & PROVENANCE AUDIT</span>
-            <span class="hud-condition-badge status-healthy">AUDIT RECORD</span>
+            <span class="hud-condition-badge status-healthy">${state.activePatternId} CONFORMANCE</span>
           </div>
           <h3 class="card-title">Pattern Conformance & Provenance Review</h3>
           <p class="card-prompt">
-            Review relations derived by wrx hostwide discovery and user prescriptions. You can manually adjust the active pattern or override individual relation endpoints.
+            Review relations derived by wrx hostwide discovery and user prescriptions for <strong>${activePatternDef ? activePatternDef.name : state.activePatternId}</strong>. Switching patterns immediately adapts the audit requirements and triage questions.
           </p>
 
           <table class="provenance-matrix-table">
@@ -168,30 +206,35 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               <tr>
                 <th>Relation</th>
                 <th>Target URI</th>
-                <th>Provenance Source</th>
+                <th>Status / Provenance</th>
               </tr>
             </thead>
             <tbody>
-              ${state.provenanceHistory.length > 0 ? state.provenanceHistory.map(prov => {
-                const badgeClass = prov.source.startsWith('AUTO_ROBOTS') || prov.source.startsWith('AUTO_SITEMAP') || prov.source.startsWith('AUTO_LINK') || prov.source.startsWith('AUTO_JSONLD')
-                  ? 'badge-auto'
-                  : prov.source.startsWith('AUTO_HEURISTIC')
-                    ? 'badge-heuristic'
-                    : 'badge-human';
+              ${patternRelations.length > 0 ? patternRelations.map(item => {
+                const badgeClass = item.source === 'UNRESOLVED'
+                  ? (item.isRequired ? 'badge-unresolved-critical' : 'badge-unresolved')
+                  : item.source.startsWith('AUTO_ROBOTS') || item.source.startsWith('AUTO_SITEMAP') || item.source.startsWith('AUTO_LINK') || item.source.startsWith('AUTO_JSONLD')
+                    ? 'badge-auto'
+                    : item.source.startsWith('AUTO_HEURISTIC')
+                      ? 'badge-heuristic'
+                      : 'badge-human';
                 return `
                   <tr>
-                    <td><strong>${prov.rel}</strong></td>
-                    <td><code>${escapeHtml(prov.targetUri)}</code></td>
                     <td>
-                      <span class="provenance-badge ${badgeClass}">${prov.source}</span>
-                      ${prov.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(prov.evidence)}</div>` : ''}
+                      <strong>${item.rel}</strong>
+                      ${item.isRequired ? '<span class="req-tag" style="font-size: 0.65rem; color: var(--clinical-crimson); margin-left: 4px;">REQUIRED</span>' : '<span class="req-tag" style="font-size: 0.65rem; color: var(--text-secondary); margin-left: 4px;">RECOMMENDED</span>'}
+                    </td>
+                    <td><code>${escapeHtml(item.targetUri)}</code></td>
+                    <td>
+                      <span class="provenance-badge ${badgeClass}">${item.source}</span>
+                      ${item.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(item.evidence)}</div>` : ''}
                     </td>
                   </tr>
                 `;
               }).join('') : `
                 <tr>
                   <td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 1rem;">
-                    No relations prescribed yet. Run Diagnose (wrx) or prescribe relations below.
+                    No relations configured for this pattern.
                   </td>
                 </tr>
               `}
@@ -290,6 +333,15 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             </div>
           </div>
 
+          ${currentQ.implementationGuidance ? `
+            <div class="clinical-guidance-panel clinical-implementation-panel" style="margin-top: 0.75rem; border-left-color: var(--clinical-emerald);">
+              <div class="guidance-icon" style="color: var(--clinical-emerald);">${iconSparkles('', 18)}</div>
+              <div class="guidance-body">
+                <strong>How to Implement:</strong> ${escapeHtml(currentQ.implementationGuidance)}
+              </div>
+            </div>
+          ` : ''}
+
           ${currentQ.quickOptions.length > 0 ? `
             <div class="prescription-options">
               <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
@@ -326,6 +378,9 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               ${iconChevronLeft('', 14)}
               <span>Previous</span>
             </button>
+            <button id="btn-skip-q" class="btn btn-secondary" title="Skip this question">
+              <span>Skip</span>
+            </button>
             <button id="btn-undo" class="btn btn-secondary" ${state.history.length === 0 ? 'disabled' : ''}>
               ${iconRotateCcw('', 14)}
               <span>Undo</span>
@@ -357,9 +412,9 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         const pid = btn.getAttribute('data-pattern');
         if (!pid) return;
         if (state.activePatternId === pid) {
-          store.setActivePatternId('ALL');
+          store.setActivePatternId('ALL', 'HUMAN_SWITCHED');
         } else {
-          store.setActivePatternId(pid);
+          store.setActivePatternId(pid, 'HUMAN_SWITCHED');
         }
       });
     });
@@ -374,7 +429,8 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       btn.addEventListener('click', () => {
         const pid = btn.getAttribute('data-pattern');
         if (pid) {
-          store.setActivePatternId(pid);
+          store.setActivePatternId(pid, 'HUMAN_SWITCHED');
+          showToast('Pattern Switched', `Requirements & triage adapted to ${pid}.`, 'info');
         }
       });
     });
@@ -443,7 +499,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       });
 
       // Update active pattern
-      store.setActivePatternId(classification.recommendedPattern);
+      store.setActivePatternId(classification.recommendedPattern, 'AUTO_DEDUCED');
 
       const inference = detectSmartMetadata(extraction.seedExtraction);
       store.setSmartInference(inference);
@@ -508,6 +564,10 @@ export function createTriagePanel(store: AppStore): HTMLElement {
 
     panel.querySelector('#btn-prev-q')?.addEventListener('click', () => store.setQuestionIndex(activeIdx - 1));
     panel.querySelector('#btn-next-q')?.addEventListener('click', () => store.setQuestionIndex(activeIdx + 1));
+    panel.querySelector('#btn-skip-q')?.addEventListener('click', () => {
+      store.setQuestionIndex(activeIdx + 1);
+      showToast('Question Skipped', 'Moved to next triage item. Gaps remain in review matrix.', 'info');
+    });
     panel.querySelector('#btn-undo')?.addEventListener('click', () => {
       store.undo();
       showToast('Action Reverted', 'Reverted previous triage answer.', 'info');

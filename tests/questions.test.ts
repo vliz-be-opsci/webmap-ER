@@ -71,4 +71,20 @@ describe('Multi-Pattern Questionnaire Generator', () => {
       expect(qs.every(q => q.patternId === pid)).toBe(true);
     }
   });
+
+  it('should omit questions for relations already satisfied when filtering by pattern', () => {
+    // When profile relation is already present
+    const reportWithProfile = evaluateHealthAndGaps('https://example.org/dataset', [
+      { target: 'https://w3id.org/ro/crate/1.1', rel: 'profile', source: 'link-header' }
+    ]);
+    const pt01Questions = generateTriageQuestions(reportWithProfile, 'PT-01');
+    expect(pt01Questions.some(q => q.rel === 'profile')).toBe(false);
+  });
+
+  it('should provide concrete implementation guidance on questions', () => {
+    const report = evaluateHealthAndGaps('https://example.org/dataset', []);
+    const pt01Questions = generateTriageQuestions(report, 'PT-01');
+    expect(pt01Questions[0].implementationGuidance).toBeDefined();
+    expect(pt01Questions[0].implementationGuidance?.length).toBeGreaterThan(20);
+  });
 });

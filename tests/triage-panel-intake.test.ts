@@ -31,4 +31,39 @@ describe('triage-panel intake and provenance UI', () => {
     expect(panel.querySelector('.provenance-review-matrix')).not.toBeNull();
     expect(panel.textContent).toContain('AUTO_JSONLD');
   });
+
+  it('updates review matrix to show pattern-specific relations and flags unresolved gaps', () => {
+    const store = new AppStore();
+    store.setActivePatternId('PT-01');
+    store.toggleIntakeReview(true);
+
+    const panel = createTriagePanel(store);
+    expect(panel.querySelector('.provenance-review-matrix')).not.toBeNull();
+    // Profile is required by PT-01, should show unresolved
+    expect(panel.textContent).toContain('profile');
+    expect(panel.textContent).toContain('UNRESOLVED');
+  });
+
+  it('renders skip question button and advances index when clicked', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    const panel = createTriagePanel(store);
+
+    const skipBtn = panel.querySelector('#btn-skip-q') as HTMLButtonElement;
+    expect(skipBtn).not.toBeNull();
+
+    const initialIdx = store.getState().ui.activeQuestionIndex;
+    skipBtn.click();
+    expect(store.getState().ui.activeQuestionIndex).toBe(initialIdx + 1);
+  });
+
+  it('renders implementation guidance in question card', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    const panel = createTriagePanel(store);
+
+    expect(panel.querySelector('.clinical-implementation-panel')).not.toBeNull();
+    expect(panel.textContent).toContain('How to Implement:');
+  });
 });
+

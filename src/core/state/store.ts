@@ -162,16 +162,35 @@ export class AppStore {
     this.notify();
   }
 
-  public setActivePatternId(patternId: string): void {
+  public setActivePatternId(patternId: string, source: string = 'HUMAN_SWITCHED'): void {
     const event: UserInteractionEvent = {
       id: crypto.randomUUID(),
       type: 'SET_ACTIVE_PATTERN',
       timestamp: Date.now(),
-      payload: { patternId }
+      payload: { patternId, source }
     };
     this.state.activePatternId = patternId;
     this.state.ui.activeQuestionIndex = 0;
     this.state.history.push(event);
+
+    if (this.state.intakeSummary) {
+      this.state.intakeSummary.recommendedPatternId = patternId;
+    }
+
+    const prov: RelationProvenance = {
+      rel: 'pattern-focus',
+      targetUri: patternId,
+      source,
+      evidence: `Active pattern focus set to ${patternId}`,
+      timestamp: Date.now()
+    };
+    const existingIdx = this.state.provenanceHistory.findIndex(p => p.rel === 'pattern-focus');
+    if (existingIdx >= 0) {
+      this.state.provenanceHistory[existingIdx] = prov;
+    } else {
+      this.state.provenanceHistory.push(prov);
+    }
+
     this.notify();
   }
 
