@@ -3,7 +3,11 @@ import { evaluateHealthAndGaps } from '../../core/triage/diagnostics';
 import { generateTriageQuestions } from '../../core/triage/questions';
 import { extractResourceLinks } from '../../core/wrx/extractor';
 import { detectSmartMetadata } from '../../core/wrx/smart-detector';
+import { probeHostwideResource } from '../../core/wrx/host-prober';
+import { classifyResourcePattern } from '../../core/wrx/pattern-classifier';
+import { buildIntakeQuestions } from '../../core/triage/intake-model';
 import { generateSitemapXml } from '../../core/export/sitemap';
+import { RT_PATTERNS } from '../../core/rt/patterns';
 import { showToast } from './toast';
 import {
   iconInfo,
@@ -48,6 +52,8 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       : report.vitalStatus === 'UNSTABLE'
         ? 'var(--clinical-amber)'
         : 'var(--clinical-crimson)';
+
+    const intakeSummary = state.intakeSummary;
 
     panel.innerHTML = `
       <!-- Clinical Telemetry HUD -->
@@ -118,6 +124,98 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           </button>
         </div>
       </section>
+
+      <!-- Provenance Audit Strip -->
+      ${intakeSummary ? `
+        <div class="provenance-audit-strip">
+          <div class="provenance-audit-header">
+            <div class="provenance-audit-title">
+              <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
+              <span>Deduced Pattern: <strong>${intakeSummary.recommendedPatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
+            </div>
+            <button id="btn-toggle-review" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem;">
+              ${state.ui.showIntakeReview ? 'Hide Review' : 'View Provenance & Review'}
+            </button>
+          </div>
+          <div class="provenance-audit-checklist">
+            ${intakeSummary.auditLog.map(audit => `
+              <span class="provenance-check-item ${audit.status === 'SUCCESS' ? 'status-success' : 'status-cors'}">
+                <span>${audit.status === 'SUCCESS' ? '✓' : '!'}</span>
+                <span>${audit.target.split('/').pop() || audit.target}: ${audit.status}</span>
+              </span>
+            `).join('')}
+            <span class="provenance-check-item">
+              <span>${intakeSummary.skippedCount} questions auto-resolved</span>
+            </span>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Pattern & Provenance Review Matrix Card -->
+      ${state.ui.showIntakeReview ? `
+        <div class="provenance-review-matrix">
+          <div class="card-header-meta">
+            <span class="card-step-badge">INTAKE & PROVENANCE AUDIT</span>
+            <span class="hud-condition-badge status-healthy">AUDIT RECORD</span>
+          </div>
+          <h3 class="card-title">Pattern Conformance & Provenance Review</h3>
+          <p class="card-prompt">
+            Review relations derived by wrx hostwide discovery and user prescriptions. You can manually adjust the active pattern or override individual relation endpoints.
+          </p>
+
+          <table class="provenance-matrix-table">
+            <thead>
+              <tr>
+                <th>Relation</th>
+                <th>Target URI</th>
+                <th>Provenance Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${state.provenanceHistory.length > 0 ? state.provenanceHistory.map(prov => {
+                const badgeClass = prov.source.startsWith('AUTO_ROBOTS') || prov.source.startsWith('AUTO_SITEMAP') || prov.source.startsWith('AUTO_LINK') || prov.source.startsWith('AUTO_JSONLD')
+                  ? 'badge-auto'
+                  : prov.source.startsWith('AUTO_HEURISTIC')
+                    ? 'badge-heuristic'
+                    : 'badge-human';
+                return `
+                  <tr>
+                    <td><strong>${prov.rel}</strong></td>
+                    <td><code>${escapeHtml(prov.targetUri)}</code></td>
+                    <td>
+                      <span class="provenance-badge ${badgeClass}">${prov.source}</span>
+                      ${prov.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(prov.evidence)}</div>` : ''}
+                    </td>
+                  </tr>
+                `;
+              }).join('') : `
+                <tr>
+                  <td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 1rem;">
+                    No relations prescribed yet. Run Diagnose (wrx) or prescribe relations below.
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 1rem;">
+            <span class="hud-label">SWITCH ACTIVE PATTERN</span>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.35rem;">
+              ${RT_PATTERNS.map(p => `
+                <button class="btn btn-secondary btn-pattern-switch ${state.activePatternId === p.id ? 'active' : ''}" data-pattern="${p.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                  ${p.id}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+            <button id="btn-apply-and-sync" class="btn btn-primary">
+              Apply Pattern & Synchronize Workspace
+            </button>
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Smart Suggestions Strip -->
       ${report.smartInference && (
@@ -266,13 +364,34 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       });
     });
 
+    // Wire Review Toggle Button
+    panel.querySelector('#btn-toggle-review')?.addEventListener('click', () => {
+      store.toggleIntakeReview();
+    });
+
+    // Wire Review Pattern Switchers
+    panel.querySelectorAll('.btn-pattern-switch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = btn.getAttribute('data-pattern');
+        if (pid) {
+          store.setActivePatternId(pid);
+        }
+      });
+    });
+
+    // Wire Apply and Sync
+    panel.querySelector('#btn-apply-and-sync')?.addEventListener('click', () => {
+      store.toggleIntakeReview(false);
+      showToast('Pattern Synchronized', `Active pattern ${state.activePatternId} applied to ER workspace.`, 'success');
+    });
+
     // Wire Smart Suggestions Chips
     panel.querySelectorAll('.smart-suggestion-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const rel = btn.getAttribute('data-rel');
         const uri = btn.getAttribute('data-uri');
         if (rel && uri) {
-          store.answerQuestion('smart-inference', rel, uri);
+          store.answerQuestionWithProvenance('smart-inference', rel, uri, 'AUTO_HEURISTIC', 'Smart Linked Data Inference');
           showToast('Smart Suggestion Adopted', `Prescribed ${rel} -> ${uri}`, 'success');
         }
       });
@@ -285,27 +404,61 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       showToast('Copied', 'Sitemap XML copied to clipboard.', 'success');
     });
 
-    // Wire Diagnosis / wrx Extraction
+    // Wire Hostwide wrx Diagnosis
     panel.querySelector('#btn-extract')?.addEventListener('click', async () => {
       const input = (panel.querySelector('#seed-uri-input') as HTMLInputElement)?.value.trim();
       if (!input) return;
       store.setSeedUri(input);
-      const res = await extractResourceLinks(input);
-      const inference = detectSmartMetadata(res);
+      showToast('wrx Probing', 'Probing seed resource, robots.txt, and sitemaps...', 'info');
+
+      const extraction = await probeHostwideResource(input);
+      const classification = classifyResourcePattern(extraction);
+      const intakeQuestions = buildIntakeQuestions(extraction, classification);
+
+      // Auto-answer high-confidence questions
+      let autoSkippedCount = 0;
+      for (const q of intakeQuestions) {
+        if (q.skipped && q.currentValue) {
+          store.answerQuestionWithProvenance(q.id, q.rel || 'describedby', q.currentValue, q.source, q.evidence);
+          autoSkippedCount++;
+        }
+      }
+
+      // Merge seed links
+      if (extraction.seedExtraction.links.length > 0) {
+        extraction.seedExtraction.links.forEach(l => {
+          store.answerQuestionWithProvenance('seed-link', l.rel, l.target, 'AUTO_LINK_HEADER');
+        });
+      }
+
+      // Set intake summary
+      store.setIntakeSummary({
+        recommendedPatternId: classification.recommendedPattern,
+        confidence: classification.confidence,
+        scorePercent: classification.scorePercent,
+        rationale: classification.rationale,
+        skippedCount: autoSkippedCount,
+        totalCount: intakeQuestions.length,
+        auditLog: extraction.auditLog
+      });
+
+      // Update active pattern
+      store.setActivePatternId(classification.recommendedPattern);
+
+      const inference = detectSmartMetadata(extraction.seedExtraction);
       store.setSmartInference(inference);
 
-      if (res.corsBlocked) {
+      if (extraction.seedExtraction.corsBlocked) {
         showToast(
           'CORS Inspection Notice',
-          'Endpoint blocked direct browser inspection (missing CORS headers). Proceeding with manual ER triage.',
+          'Direct network inspection was restricted by CORS. Heuristic diagnostic triage active.',
           'warning',
           5000
         );
       } else {
-        store.setLinks(res.links);
         showToast(
           'Diagnosis Complete',
-          `Extracted ${res.links.length} relations via wrx. Linked data: ${inference.hasLinkedData ? 'Detected' : 'Not found'}.`,
+          `Deduced ${classification.recommendedPattern} (${classification.confidence} confidence). ${autoSkippedCount} questions auto-resolved.`,
           'success'
         );
       }
@@ -325,7 +478,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       }
       const inference = detectSmartMetadata(res);
       store.setSmartInference(inference);
-      store.answerQuestion('q-proactive-missing-ld', 'describedby', val);
+      store.answerQuestionWithProvenance('q-proactive-missing-ld', 'describedby', val, 'HUMAN', 'Crawled secondary metadata record');
       showToast('External Crawl Complete', `Linked metadata record prescribed with ${res.links.length} secondary links.`, 'success');
     });
 
@@ -333,7 +486,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       btn.addEventListener('click', () => {
         const uri = btn.getAttribute('data-uri');
         if (uri && currentQ) {
-          store.answerQuestion(currentQ.id, currentQ.rel, uri);
+          store.answerQuestionWithProvenance(currentQ.id, currentQ.rel, uri, 'HUMAN', 'Selected from recommended options');
           showToast('Prescription Saved', `Assigned ${currentQ.rel} -> ${uri}`, 'info');
           if (activeIdx < questions.length - 1) {
             store.setQuestionIndex(activeIdx + 1);
@@ -345,7 +498,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
     panel.querySelector('#btn-save-answer')?.addEventListener('click', () => {
       const val = (panel.querySelector('#custom-uri-input') as HTMLInputElement)?.value.trim();
       if (val && currentQ) {
-        store.answerQuestion(currentQ.id, currentQ.rel, val);
+        store.answerQuestionWithProvenance(currentQ.id, currentQ.rel, val, 'HUMAN', 'Custom user input');
         showToast('Prescription Saved', `Assigned ${currentQ.rel} -> ${val}`, 'info');
         if (activeIdx < questions.length - 1) {
           store.setQuestionIndex(activeIdx + 1);
