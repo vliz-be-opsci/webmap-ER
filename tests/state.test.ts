@@ -28,4 +28,26 @@ describe('State Store & Fragment Persistence', () => {
     expect(recovered?.seedUri).toBe('https://example.org/test');
     expect(recovered?.links[0].target).toBe('https://example.org/prof');
   });
+
+  it('records provenance when an answer is saved', () => {
+    const store = new AppStore();
+    store.answerQuestionWithProvenance(
+      'q-sitemap',
+      'item',
+      'https://example.org/sitemap.xml',
+      'AUTO_ROBOTS',
+      'Extracted from /robots.txt'
+    );
+
+    const state = store.getState();
+    expect(state.links).toHaveLength(1);
+    expect(state.provenanceHistory).toBeDefined();
+    expect(state.provenanceHistory[0]).toMatchObject({
+      rel: 'item',
+      targetUri: 'https://example.org/sitemap.xml',
+      source: 'AUTO_ROBOTS',
+      evidence: 'Extracted from /robots.txt'
+    });
+  });
 });
+

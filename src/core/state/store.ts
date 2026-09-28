@@ -8,6 +8,24 @@ export interface UserInteractionEvent {
   payload: any;
 }
 
+export interface RelationProvenance {
+  rel: string;
+  targetUri: string;
+  source: string;
+  evidence?: string;
+  timestamp: number;
+}
+
+export interface IntakeSummaryState {
+  recommendedPatternId: string;
+  confidence: 'high' | 'medium' | 'low';
+  scorePercent: number;
+  rationale: string;
+  skippedCount: number;
+  totalCount: number;
+  auditLog: Array<{ target: string; status: string; message: string }>;
+}
+
 export interface AppState {
   version: number;
   mode: 'triage' | 'wizard';
@@ -16,9 +34,12 @@ export interface AppState {
   links: DiscoveredLink[];
   smartInference?: SmartInferenceResult;
   history: UserInteractionEvent[];
+  provenanceHistory: RelationProvenance[];
+  intakeSummary?: IntakeSummaryState;
   ui: {
     viewMode: 'balanced' | 'extended-triage' | 'extended-graph';
     activeQuestionIndex: number;
+    showIntakeReview: boolean;
   };
 }
 
@@ -34,9 +55,11 @@ export class AppStore {
       activePatternId: 'PT-01',
       links: [],
       history: [],
+      provenanceHistory: [],
       ui: {
         viewMode: 'balanced',
-        activeQuestionIndex: 0
+        activeQuestionIndex: 0,
+        showIntakeReview: false
       },
       ...initialState
     };
@@ -100,6 +123,40 @@ export class AppStore {
     this.notify();
   }
 
+  public answerQuestionWithProvenance(
+    questionId: string,
+    rel: string,
+    targetUri: string,
+    source: string = 'HUMAN',
+    evidence?: string
+  ): void {
+    this.answerQuestion(questionId, rel, targetUri);
+    const prov: RelationProvenance = {
+      rel,
+      targetUri,
+      source,
+      evidence,
+      timestamp: Date.now()
+    };
+    const existingIdx = this.state.provenanceHistory.findIndex(p => p.rel === rel);
+    if (existingIdx >= 0) {
+      this.state.provenanceHistory[existingIdx] = prov;
+    } else {
+      this.state.provenanceHistory.push(prov);
+    }
+    this.notify();
+  }
+
+  public setIntakeSummary(summary: IntakeSummaryState | undefined): void {
+    this.state.intakeSummary = summary;
+    this.notify();
+  }
+
+  public toggleIntakeReview(show?: boolean): void {
+    this.state.ui.showIntakeReview = show !== undefined ? show : !this.state.ui.showIntakeReview;
+    this.notify();
+  }
+
   public setViewMode(mode: 'balanced' | 'extended-triage' | 'extended-graph'): void {
     this.state.ui.viewMode = mode;
     this.notify();
@@ -134,6 +191,7 @@ export class AppStore {
     const remaining = [...this.state.history];
     this.state.seedUri = '';
     this.state.links = [];
+    this.state.provenanceHistory = [];
     this.state.history = [];
 
     for (const e of remaining) {
@@ -147,7 +205,10 @@ export class AppStore {
     this.state.seedUri = '';
     this.state.links = [];
     this.state.history = [];
+    this.state.provenanceHistory = [];
+    this.state.intakeSummary = undefined;
     this.state.ui.activeQuestionIndex = 0;
+    this.state.ui.showIntakeReview = false;
     this.notify();
   }
 }
