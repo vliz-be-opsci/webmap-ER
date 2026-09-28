@@ -4,8 +4,9 @@ import { AppStore } from '../src/core/state/store';
 import { createTriagePanel } from '../src/ui/components/triage-panel';
 
 describe('Triage Panel Pattern Matrix & Smart Guidance', () => {
-  it('should render the Pattern Matrix Strip with badges for PT-01 to PT-08', () => {
+  it('should render the Pattern Matrix Strip with badges for PT-01 to PT-08 when resource URI is provided', () => {
     const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
     const panel = createTriagePanel(store);
 
     const matrix = panel.querySelector('.pattern-matrix-strip');

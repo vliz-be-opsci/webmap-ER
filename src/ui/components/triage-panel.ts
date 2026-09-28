@@ -113,43 +113,8 @@ export function createTriagePanel(store: AppStore): HTMLElement {
   function render() {
     const state = store.getState();
     const hasSeedUri = !!state.seedUri && state.seedUri.trim().length > 0;
-    const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
-    const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
-    const questions = hasSeedUri ? generateTriageQuestions(report, activeFilter) : [];
-    const activeIdx = Math.min(state.ui.activeQuestionIndex, Math.max(0, questions.length - 1));
-    const currentQ = questions[activeIdx];
-
     const activePatternDef = getPatternById(state.activePatternId) || RT_PATTERNS[0];
-    const activePatternEval = evaluatePatternScore(state.activePatternId, state.links, hasSeedUri);
-
-    const statusClass = hasSeedUri ? `status-${report.vitalStatus.toLowerCase()}` : 'status-standby';
-    const statusLabel = !hasSeedUri 
-      ? 'AWAITING RESOURCE (STANDBY)'
-      : report.vitalStatus === 'HEALTHY' 
-        ? 'VITAL CONFORMITY' 
-        : report.vitalStatus === 'UNSTABLE' 
-          ? 'UNSTABLE CONDITION' 
-          : 'CRITICAL TRAUMA';
-
-    const meterBg = !hasSeedUri
-      ? 'var(--border-subtle)'
-      : report.vitalStatus === 'HEALTHY'
-        ? 'var(--clinical-emerald)'
-        : report.vitalStatus === 'UNSTABLE'
-          ? 'var(--clinical-amber)'
-          : 'var(--clinical-crimson)';
-
-    const displayScore = hasSeedUri ? report.score : 0;
-    const meterWidth = hasSeedUri ? Math.max(report.score, 4) : 0;
     const intakeSummary = state.intakeSummary;
-
-    // Standards to display for current pattern
-    const standardsToDisplay = (activePatternDef && activePatternDef.standards && activePatternDef.standards.length > 0)
-      ? activePatternDef.standards
-      : [
-          { label: 'RFC 8288 (Web Linking)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' },
-          { label: 'RFC 9264 (Linkset)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' }
-        ];
 
     // Build pattern-specific relations for Provenance Review Matrix
     const patternRelations: Array<{ rel: string; isRequired: boolean; isPresent: boolean; targetUri: string; source: string; evidence?: string }> = [];
@@ -188,312 +153,136 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       }
     });
 
-    panel.innerHTML = `
-      <!-- Clinical Telemetry HUD -->
-      <section class="telemetry-hud" aria-label="RT Health Diagnostic Telemetry">
-        <div class="hud-top-row">
-          <div class="hud-lead">
-            <span class="hud-label">GLOBAL VITAL SIGNS SCORE</span>
-            <div class="hud-score-display">
-              <span class="hud-score-value tabular-numbers">${displayScore}</span>
-              <span class="hud-score-unit">%</span>
-            </div>
+    const intakeSummaryHtml = intakeSummary ? `
+      <div class="provenance-audit-strip">
+        <div class="provenance-audit-header">
+          <div class="provenance-audit-title">
+            <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
+            <span>Deduced Pattern: <strong>${intakeSummary.recommendedPatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
           </div>
-          <div class="hud-condition-badge ${statusClass}">
-            <span class="status-pulse-dot"></span>
-            <span>${statusLabel}</span>
-          </div>
-        </div>
-
-        <div class="hud-progress-track">
-          <div class="hud-meter-bar" style="width: ${meterWidth}%; background: ${meterBg};"></div>
-        </div>
-
-        <!-- Active Pattern Conformity Row -->
-        <div class="hud-pattern-row">
-          <div class="hud-pattern-lead">
-            <span class="hud-pattern-id">${activePatternDef.id}</span>
-            <div class="hud-pattern-meta">
-              <span class="hud-pattern-name">${activePatternDef.name}</span>
-              <span class="hud-pattern-status badge-${activePatternEval.status.toLowerCase()}">${activePatternEval.status} (${hasSeedUri ? activePatternEval.score : 0}%)</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Relation Breakdown Section: Concrete relations and gaps -->
-        <div class="hud-breakdown-section">
-          <!-- Detected Relations -->
-          <div class="hud-rel-group">
-            <span class="hud-sub-label">DETECTED RELATIONS (${report.presentRelations.length})</span>
-            <div class="hud-chips-wrap">
-              ${report.presentRelations.length > 0 ? report.presentRelations.map(rel => `
-                <span class="hud-rel-chip satisfied" title="Detected relation rel=&quot;${escapeHtml(rel)}&quot;">
-                  <span class="chip-icon">✓</span>
-                  <code>${escapeHtml(rel)}</code>
-                </span>
-              `).join('') : `
-                <span class="hud-empty-hint">${hasSeedUri ? 'No relations detected yet on seed' : 'Awaiting seed resource URL to inspect'}</span>
-              `}
-            </div>
-          </div>
-
-          <!-- Active Pattern Specific Gaps -->
-          <div class="hud-rel-group">
-            <span class="hud-sub-label">ACTIVE PATTERN (${activePatternDef.id}) CONFORMANCE GAPS</span>
-            <div class="hud-chips-wrap">
-              ${activePatternEval.missingRequired.map(rel => `
-                <span class="hud-rel-chip missing-req" title="Missing REQUIRED relation for ${activePatternDef.id}">
-                  <span class="chip-icon">!</span>
-                  <code>${escapeHtml(rel)}</code>
-                  <span class="chip-tag tag-req">REQUIRED</span>
-                </span>
-              `).join('')}
-              ${activePatternEval.missingRecommended.map(rel => `
-                <span class="hud-rel-chip missing-rec" title="Missing RECOMMENDED relation for ${activePatternDef.id}">
-                  <span class="chip-icon">?</span>
-                  <code>${escapeHtml(rel)}</code>
-                  <span class="chip-tag tag-rec">RECOMMENDED</span>
-                </span>
-              `).join('')}
-              ${activePatternEval.satisfiedRequired.map(rel => `
-                <span class="hud-rel-chip satisfied" title="Satisfied REQUIRED relation for ${activePatternDef.id}">
-                  <span class="chip-icon">✓</span>
-                  <code>${escapeHtml(rel)}</code>
-                  <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REQ</span>
-                </span>
-              `).join('')}
-              ${activePatternEval.satisfiedRecommended.map(rel => `
-                <span class="hud-rel-chip satisfied" title="Satisfied RECOMMENDED relation for ${activePatternDef.id}">
-                  <span class="chip-icon">✓</span>
-                  <code>${escapeHtml(rel)}</code>
-                  <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REC</span>
-                </span>
-              `).join('')}
-              ${activePatternEval.missingRequired.length === 0 && activePatternEval.missingRecommended.length === 0 ? `
-                <span class="hud-all-satisfied-hint">✓ All relations for ${activePatternDef.id} satisfied</span>
-              ` : ''}
-            </div>
-          </div>
-
-          <!-- Cross-Pattern Gaps Breakdown (precise pattern attribution) -->
-          ${report.gaps.length > 0 && report.gaps.some(g => g.patternId !== activePatternDef.id) ? `
-            <div class="hud-rel-group hud-cross-pattern-gaps">
-              <span class="hud-sub-label">CROSS-PATTERN GAPS</span>
-              <div class="hud-chips-wrap">
-                ${report.gaps.filter(g => g.patternId !== activePatternDef.id).map(gap => `
-                  <span class="hud-rel-chip ${gap.severity === 'CRITICAL' ? 'missing-req' : 'missing-rec'}" title="${escapeHtml(gap.message)}">
-                    <span class="chip-icon">${gap.severity === 'CRITICAL' ? '!' : '?'}</span>
-                    <code>${escapeHtml(gap.rel)}</code>
-                    <span class="chip-pattern-tag">[${gap.patternId}]</span>
-                  </span>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-        </div>
-
-        <!-- Pattern Standards (Clickable Links) -->
-        <div class="hud-standards-bar">
-          <span class="hud-sub-label">SPECIFICATIONS &amp; STANDARDS FOR ${activePatternDef.id}:</span>
-          <div class="hud-standards-list">
-            ${standardsToDisplay.map(std => `
-              <a href="${std.url}" target="_blank" rel="noopener noreferrer" class="hud-standard-link" title="Open ${escapeHtml(std.label)} in new tab">
-                <span>${escapeHtml(std.label)}</span>
-                <span class="ext-icon">↗</span>
-              </a>
-            `).join('')}
-          </div>
-        </div>
-      </section>
-
-      <!-- Pattern Matrix Strip -->
-      <div class="pattern-matrix-strip" role="group" aria-label="Radical Transparency 8-Pattern Matrix">
-        ${report.patterns.map(p => {
-          const isActive = state.activePatternId === p.patternId;
-          const badgeClass = p.status === 'SATISFIED' ? 'badge-satisfied' : p.status === 'PARTIAL' ? 'badge-partial' : 'badge-unmet';
-          return `
-            <button class="pattern-badge ${isActive ? 'active' : ''} ${badgeClass}" data-pattern="${p.patternId}" title="${p.patternName} (${p.status})">
-              <span class="pattern-badge-id">${p.patternId}</span>
-              <span class="pattern-status-dot"></span>
-            </button>
-          `;
-        }).join('')}
-      </div>
-
-      <!-- Target Seed Resource Input Bar -->
-      <section class="seed-card" aria-label="Seed Resource Diagnostic Input">
-        <div class="seed-header">
-          <label for="seed-uri-input" class="hud-label" style="margin-bottom: 0;">TARGET SEED RESOURCE URI</label>
-        </div>
-        <div class="terminal-input-group">
-          <span class="protocol-badge">HTTPS</span>
-          <input 
-            type="text" 
-            id="seed-uri-input" 
-            class="form-control-bare" 
-            placeholder="https://example.org/dataset" 
-            value="${escapeHtml(state.seedUri)}" 
-            aria-label="Seed Resource URI"
-          />
-          <button id="btn-extract" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
-            Diagnose (wrx)
+          <button id="btn-toggle-review" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem;">
+            ${state.ui.showIntakeReview ? 'Hide Review' : 'View Provenance & Review'}
           </button>
         </div>
-      </section>
-
-      <!-- Provenance Audit Strip -->
-      ${intakeSummary ? `
-        <div class="provenance-audit-strip">
-          <div class="provenance-audit-header">
-            <div class="provenance-audit-title">
-              <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
-              <span>Active Pattern: <strong>${state.activePatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
-            </div>
-            <button id="btn-toggle-review" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem;">
-              ${state.ui.showIntakeReview ? 'Hide Review' : 'View Provenance & Review'}
-            </button>
-          </div>
-          <div class="provenance-audit-checklist">
-            ${intakeSummary.auditLog.map(audit => `
-              <span class="provenance-check-item ${audit.status === 'SUCCESS' ? 'status-success' : 'status-cors'}">
-                <span>${audit.status === 'SUCCESS' ? '✓' : '!'}</span>
-                <span>${escapeHtml(audit.target.split('/').pop() || audit.target)}: ${audit.status}</span>
-              </span>
-            `).join('')}
-            <span class="provenance-check-item">
-              <span>${intakeSummary.skippedCount} questions auto-resolved</span>
+        <div class="provenance-audit-checklist">
+          ${intakeSummary.auditLog.map(audit => `
+            <span class="provenance-check-item ${audit.status === 'SUCCESS' ? 'status-success' : 'status-cors'}">
+              <span>${audit.status === 'SUCCESS' ? '✓' : '!'}</span>
+              <span>${escapeHtml(audit.target.split('/').pop() || audit.target)}: ${audit.status}</span>
             </span>
-          </div>
+          `).join('')}
+          <span class="provenance-check-item">
+            <span>${intakeSummary.skippedCount} questions auto-resolved</span>
+          </span>
         </div>
-      ` : ''}
+      </div>
+    ` : '';
 
-      <!-- Pattern & Provenance Review Matrix Card -->
-      ${state.ui.showIntakeReview ? `
-        <div class="provenance-review-matrix">
-          <div class="card-header-meta">
-            <span class="card-step-badge">INTAKE & PROVENANCE AUDIT</span>
-            <span class="hud-condition-badge status-healthy">${state.activePatternId} CONFORMANCE</span>
-          </div>
-          <h3 class="card-title">Pattern Conformance & Provenance Review</h3>
-          <p class="card-prompt">
-            Review relations derived by wrx hostwide discovery and user prescriptions for <strong>${escapeHtml(activePatternDef ? activePatternDef.name : state.activePatternId)}</strong>. Switching patterns immediately adapts the audit requirements and triage questions.
-          </p>
+    const reviewMatrixHtml = state.ui.showIntakeReview ? `
+      <div class="provenance-review-matrix">
+        <div class="card-header-meta">
+          <span class="card-step-badge">INTAKE & PROVENANCE AUDIT</span>
+          <span class="hud-condition-badge status-healthy">${state.activePatternId} CONFORMANCE</span>
+        </div>
+        <h3 class="card-title">Pattern Conformance & Provenance Review</h3>
+        <p class="card-prompt">
+          Review relations derived by wrx hostwide discovery and user prescriptions for <strong>${escapeHtml(activePatternDef ? activePatternDef.name : state.activePatternId)}</strong>. Switching patterns immediately adapts the audit requirements and triage questions.
+        </p>
 
-          <table class="provenance-matrix-table">
-            <thead>
-              <tr>
-                <th>Relation</th>
-                <th>Target URI</th>
-                <th>Status / Provenance</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${patternRelations.length > 0 ? patternRelations.map(item => {
-                const badgeClass = item.source === 'UNRESOLVED'
-                  ? (item.isRequired ? 'badge-unresolved-critical' : 'badge-unresolved')
-                  : item.source.startsWith('AUTO_ROBOTS') || item.source.startsWith('AUTO_SITEMAP') || item.source.startsWith('AUTO_LINK') || item.source.startsWith('AUTO_JSONLD')
-                    ? 'badge-auto'
-                    : item.source.startsWith('AUTO_HEURISTIC')
-                      ? 'badge-heuristic'
-                      : 'badge-human';
-                return `
-                  <tr>
-                    <td>
-                      <strong>${escapeHtml(item.rel)}</strong>
-                      ${item.isRequired ? '<span class="req-tag" style="font-size: 0.65rem; color: var(--clinical-crimson); margin-left: 4px;">REQUIRED</span>' : '<span class="req-tag" style="font-size: 0.65rem; color: var(--text-secondary); margin-left: 4px;">RECOMMENDED</span>'}
-                    </td>
-                    <td><code>${escapeHtml(item.targetUri)}</code></td>
-                    <td>
-                      <span class="provenance-badge ${badgeClass}">${escapeHtml(item.source)}</span>
-                      ${item.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(item.evidence)}</div>` : ''}
-                    </td>
-                  </tr>
-                `;
-              }).join('') : `
+        <table class="provenance-matrix-table">
+          <thead>
+            <tr>
+              <th>Relation</th>
+              <th>Target URI</th>
+              <th>Status / Provenance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${patternRelations.length > 0 ? patternRelations.map(item => {
+              const badgeClass = item.source === 'UNRESOLVED'
+                ? (item.isRequired ? 'badge-unresolved-critical' : 'badge-unresolved')
+                : item.source.startsWith('AUTO_ROBOTS') || item.source.startsWith('AUTO_SITEMAP') || item.source.startsWith('AUTO_LINK') || item.source.startsWith('AUTO_JSONLD')
+                  ? 'badge-auto'
+                  : item.source.startsWith('AUTO_HEURISTIC')
+                    ? 'badge-heuristic'
+                    : 'badge-human';
+              return `
                 <tr>
-                  <td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 1rem;">
-                    No relations configured for this pattern.
+                  <td>
+                    <strong>${escapeHtml(item.rel)}</strong>
+                    ${item.isRequired ? '<span class="req-tag" style="font-size: 0.65rem; color: var(--clinical-crimson); margin-left: 4px;">REQUIRED</span>' : '<span class="req-tag" style="font-size: 0.65rem; color: var(--text-secondary); margin-left: 4px;">RECOMMENDED</span>'}
+                  </td>
+                  <td><code>${escapeHtml(item.targetUri)}</code></td>
+                  <td>
+                    <span class="provenance-badge ${badgeClass}">${escapeHtml(item.source)}</span>
+                    ${item.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(item.evidence)}</div>` : ''}
                   </td>
                 </tr>
-              `}
-            </tbody>
-          </table>
+              `;
+            }).join('') : `
+              <tr>
+                <td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 1rem;">
+                  No relations configured for this pattern.
+                </td>
+              </tr>
+            `}
+          </tbody>
+        </table>
 
-          <div style="margin-top: 1rem;">
-            <span class="hud-label">SWITCH ACTIVE PATTERN</span>
-            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.35rem;">
-              ${RT_PATTERNS.map(p => `
-                <button class="btn btn-secondary btn-pattern-switch ${state.activePatternId === p.id ? 'active' : ''}" data-pattern="${p.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
-                  ${p.id}
-                </button>
-              `).join('')}
-            </div>
+        <div style="margin-top: 1rem;">
+          <span class="hud-label">SWITCH ACTIVE PATTERN</span>
+          <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.35rem;">
+            ${RT_PATTERNS.map(p => `
+              <button class="btn btn-secondary btn-pattern-switch ${state.activePatternId === p.id ? 'active' : ''}" data-pattern="${p.id}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">
+                ${p.id}
+              </button>
+            `).join('')}
           </div>
+        </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
-            <button id="btn-apply-and-sync" class="btn btn-primary">
-              Apply Pattern & Synchronize Workspace
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+          <button id="btn-apply-and-sync" class="btn btn-primary">
+            Apply Pattern & Synchronize Workspace
+          </button>
+        </div>
+      </div>
+    ` : '';
+
+    if (!hasSeedUri) {
+      // EMPTY STATE: Seed URI input is promoted to TOP and HIGHLIGHTED; Telemetry HUD and Pattern Matrix are HIDDEN
+      panel.innerHTML = `
+        <!-- Target Seed Resource Input Bar (HIGHLIGHTED ON TOP) -->
+        <section class="seed-card highlighted" aria-label="Seed Resource Diagnostic Input">
+          <div class="seed-header">
+            <label for="seed-uri-input" class="hud-label" style="margin-bottom: 0;">
+              <span class="status-pulse-dot" style="background: var(--clinical-cobalt);"></span>
+              <span>TARGET SEED RESOURCE URI (AWAITING INPUT)</span>
+            </label>
+          </div>
+          <div class="terminal-input-group">
+            <span class="protocol-badge">HTTPS</span>
+            <input 
+              type="text" 
+              id="seed-uri-input" 
+              class="form-control-bare" 
+              placeholder="https://example.org/dataset (enter URI or pick preset below)" 
+              value="${escapeHtml(state.seedUri)}" 
+              aria-label="Seed Resource URI"
+              autofocus
+            />
+            <button id="btn-extract" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
+              Diagnose (wrx)
             </button>
           </div>
-        </div>
-      ` : ''}
+        </section>
 
-      <!-- Smart Suggestions Strip -->
-      ${report.smartInference && (
-        (report.smartInference.detectedProfiles && report.smartInference.detectedProfiles.length > 0) ||
-        (report.smartInference.detectedPids && report.smartInference.detectedPids.length > 0) ||
-        (report.smartInference.detectedApis && report.smartInference.detectedApis.length > 0)
-      ) ? `
-        <div class="smart-suggestions-strip">
-          <div class="smart-suggestions-header">
-            <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
-            <span class="hud-label" style="margin-bottom: 0;">SMART LINKED DATA INFERENCES</span>
-          </div>
-          <div class="smart-suggestions-chips">
-            ${(report.smartInference.detectedProfiles || []).map(p => `
-              <button class="smart-suggestion-chip" data-rel="profile" data-uri="${p.uri}">
-                <span>Adopt Profile: <strong>${escapeHtml(p.label)}</strong></span>
-              </button>
-            `).join('')}
-            ${(report.smartInference.detectedPids || []).map(p => `
-              <button class="smart-suggestion-chip" data-rel="cite-as" data-uri="${p.uri}">
-                <span>Adopt PID: <strong>${escapeHtml(p.label)}</strong></span>
-              </button>
-            `).join('')}
-            ${(report.smartInference.detectedApis || []).map(a => `
-              <button class="smart-suggestion-chip" data-rel="service-desc" data-uri="${a.endpoint || ''}">
-                <span>Link API: <strong>${escapeHtml(a.label || 'API Description')}</strong></span>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
+        <!-- Provenance Audit Strip (if present) -->
+        ${intakeSummaryHtml}
 
-      <!-- PT-06 Hostwide Sitemap Card -->
-      ${state.activePatternId === 'PT-06' && hasSeedUri ? `
-        <div class="sitemap-preview-card">
-          <div class="card-header-meta">
-            <span class="card-step-badge">PATTERN PT-06</span>
-            <span class="hud-condition-badge status-healthy">SITEMAP HARVESTING</span>
-          </div>
-          <h3 class="card-title">Hostwide Discovery: sitemap.xml Preview</h3>
-          <p class="card-prompt">
-            Radical Transparency Pattern 06 prescribes embedding <code>&lt;xhtml:link&gt;</code> signposting relations directly into your XML sitemaps to allow crawlers to harvest thousands of datasets in a single crawl pass.
-          </p>
-          <div class="code-preview-container">
-            <pre class="code-preview"><code id="sitemap-xml-content">${escapeHtml(generateSitemapXml(state.seedUri, state.links))}</code></pre>
-          </div>
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-            <button id="btn-copy-sitemap" class="btn btn-secondary">
-              ${iconCopy('', 14)}
-              <span>Copy sitemap.xml</span>
-            </button>
-          </div>
-        </div>
-      ` : ''}
+        <!-- Pattern & Provenance Review Matrix Card (if open) -->
+        ${reviewMatrixHtml}
 
-      <!-- Active Questionnaire or Healthy State or Awaiting Resource Intake Hero -->
-      ${!hasSeedUri ? `
+        <!-- Intake Hero Card with Quickstart Presets -->
         <div class="intake-hero-card">
           <div class="intake-hero-header">
             <div class="intake-hero-icon">${iconSparkles('', 26)}</div>
@@ -521,96 +310,343 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             </div>
           </div>
         </div>
-      ` : currentQ ? `
-        <div class="question-card severity-${currentQ.severity.toLowerCase()}">
-          <div class="card-header-meta">
-            <span class="card-step-badge">QUESTION ${activeIdx + 1} OF ${questions.length}</span>
-            <span class="hud-condition-badge status-${currentQ.severity.toLowerCase()}">
-              ${currentQ.severity} GAP
-            </span>
-          </div>
-          <h3 class="card-title">${escapeHtml(currentQ.title)}</h3>
-          <p class="card-prompt">${escapeHtml(currentQ.prompt)}</p>
-          
-          <div class="clinical-guidance-panel">
-            <div class="guidance-icon">${iconInfo('', 18)}</div>
-            <div class="guidance-body">
-              <strong>Why This Matters:</strong> ${escapeHtml(currentQ.didacticText)}
-            </div>
-          </div>
+      `;
+    } else {
+      // ACTIVE STATE: Seed URI provided -> Show Telemetry HUD, Pattern Strip, Standard Seed Input, and Questionnaire
+      const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
+      const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
+      const questions = generateTriageQuestions(report, activeFilter);
+      const activeIdx = Math.min(state.ui.activeQuestionIndex, Math.max(0, questions.length - 1));
+      const currentQ = questions[activeIdx];
 
-          ${currentQ.implementationGuidance ? `
-            <div class="clinical-guidance-panel clinical-implementation-panel" style="margin-top: 0.75rem; border-left-color: var(--clinical-emerald);">
-              <div class="guidance-icon" style="color: var(--clinical-emerald);">${iconSparkles('', 18)}</div>
-              <div class="guidance-body">
-                <strong>How to Implement:</strong> ${escapeHtml(currentQ.implementationGuidance)}
+      const activePatternEval = evaluatePatternScore(state.activePatternId, state.links, true);
+
+      const statusClass = `status-${report.vitalStatus.toLowerCase()}`;
+      const statusLabel = report.vitalStatus === 'HEALTHY' 
+        ? 'VITAL CONFORMITY' 
+        : report.vitalStatus === 'UNSTABLE' 
+          ? 'UNSTABLE CONDITION' 
+          : 'CRITICAL TRAUMA';
+
+      const meterBg = report.vitalStatus === 'HEALTHY'
+        ? 'var(--clinical-emerald)'
+        : report.vitalStatus === 'UNSTABLE'
+          ? 'var(--clinical-amber)'
+          : 'var(--clinical-crimson)';
+
+      // Standards to display for current pattern
+      const standardsToDisplay = (activePatternDef && activePatternDef.standards && activePatternDef.standards.length > 0)
+        ? activePatternDef.standards
+        : [
+            { label: 'RFC 8288 (Web Linking)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' },
+            { label: 'RFC 9264 (Linkset)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' }
+          ];
+
+      panel.innerHTML = `
+        <!-- Clinical Telemetry HUD -->
+        <section class="telemetry-hud" aria-label="RT Health Diagnostic Telemetry">
+          <div class="hud-top-row">
+            <div class="hud-lead">
+              <span class="hud-label">GLOBAL VITAL SIGNS SCORE</span>
+              <div class="hud-score-display">
+                <span class="hud-score-value tabular-numbers">${report.score}</span>
+                <span class="hud-score-unit">%</span>
               </div>
             </div>
-          ` : ''}
-
-          ${currentQ.quickOptions.length > 0 ? `
-            <div class="prescription-options">
-              <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
-              ${currentQ.quickOptions.map(opt => `
-                <button class="btn-prescription-opt" data-uri="${escapeHtml(opt.uri)}">
-                  <span class="prescription-opt-title">${escapeHtml(opt.label)}</span>
-                  <span class="prescription-opt-uri">${escapeHtml(opt.uri)}</span>
-                  ${opt.description ? `<span class="prescription-opt-desc">${escapeHtml(opt.description)}</span>` : ''}
-                </button>
-              `).join('')}
+            <div class="hud-condition-badge ${statusClass}">
+              <span class="status-pulse-dot"></span>
+              <span>${statusLabel}</span>
             </div>
-          ` : ''}
+          </div>
 
-          <div class="terminal-input-group" style="margin-top: 1rem;">
-            <input 
-              type="text" 
-              id="custom-uri-input" 
-              class="form-control-bare" 
-              placeholder="${escapeHtml(currentQ.inputPlaceholder)}" 
-              aria-label="Custom target URI"
-            />
-            <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
-              Prescribe
-            </button>
-            ${currentQ.id === 'q-proactive-missing-ld' ? `
-              <button id="btn-crawl-metadata" class="btn btn-secondary" style="border-radius: 0; padding: 0.5rem 0.85rem;">
-                ${iconSearch('', 14)} Crawl Metadata
-              </button>
+          <div class="hud-progress-track">
+            <div class="hud-meter-bar" style="width: ${Math.max(report.score, 4)}%; background: ${meterBg};"></div>
+          </div>
+
+          <!-- Active Pattern Conformity Row -->
+          <div class="hud-pattern-row">
+            <div class="hud-pattern-lead">
+              <span class="hud-pattern-id">${activePatternDef.id}</span>
+              <div class="hud-pattern-meta">
+                <span class="hud-pattern-name">${activePatternDef.name}</span>
+                <span class="hud-pattern-status badge-${activePatternEval.status.toLowerCase()}">${activePatternEval.status} (${activePatternEval.score}%)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Relation Breakdown Section: Concrete relations and gaps -->
+          <div class="hud-breakdown-section">
+            <!-- Detected Relations -->
+            <div class="hud-rel-group">
+              <span class="hud-sub-label">DETECTED RELATIONS (${report.presentRelations.length})</span>
+              <div class="hud-chips-wrap">
+                ${report.presentRelations.length > 0 ? report.presentRelations.map(rel => `
+                  <span class="hud-rel-chip satisfied" title="Detected relation rel=&quot;${escapeHtml(rel)}&quot;">
+                    <span class="chip-icon">✓</span>
+                    <code>${escapeHtml(rel)}</code>
+                  </span>
+                `).join('') : `
+                  <span class="hud-empty-hint">No relations detected yet on seed</span>
+                `}
+              </div>
+            </div>
+
+            <!-- Active Pattern Specific Gaps -->
+            <div class="hud-rel-group">
+              <span class="hud-sub-label">ACTIVE PATTERN (${activePatternDef.id}) CONFORMANCE GAPS</span>
+              <div class="hud-chips-wrap">
+                ${activePatternEval.missingRequired.map(rel => `
+                  <span class="hud-rel-chip missing-req" title="Missing REQUIRED relation for ${activePatternDef.id}">
+                    <span class="chip-icon">!</span>
+                    <code>${escapeHtml(rel)}</code>
+                    <span class="chip-tag tag-req">REQUIRED</span>
+                  </span>
+                `).join('')}
+                ${activePatternEval.missingRecommended.map(rel => `
+                  <span class="hud-rel-chip missing-rec" title="Missing RECOMMENDED relation for ${activePatternDef.id}">
+                    <span class="chip-icon">?</span>
+                    <code>${escapeHtml(rel)}</code>
+                    <span class="chip-tag tag-rec">RECOMMENDED</span>
+                  </span>
+                `).join('')}
+                ${activePatternEval.satisfiedRequired.map(rel => `
+                  <span class="hud-rel-chip satisfied" title="Satisfied REQUIRED relation for ${activePatternDef.id}">
+                    <span class="chip-icon">✓</span>
+                    <code>${escapeHtml(rel)}</code>
+                    <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REQ</span>
+                  </span>
+                `).join('')}
+                ${activePatternEval.satisfiedRecommended.map(rel => `
+                  <span class="hud-rel-chip satisfied" title="Satisfied RECOMMENDED relation for ${activePatternDef.id}">
+                    <span class="chip-icon">✓</span>
+                    <code>${escapeHtml(rel)}</code>
+                    <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REC</span>
+                  </span>
+                `).join('')}
+                ${activePatternEval.missingRequired.length === 0 && activePatternEval.missingRecommended.length === 0 ? `
+                  <span class="hud-all-satisfied-hint">✓ All relations for ${activePatternDef.id} satisfied</span>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Cross-Pattern Gaps Breakdown (precise pattern attribution) -->
+            ${report.gaps.length > 0 && report.gaps.some(g => g.patternId !== activePatternDef.id) ? `
+              <div class="hud-rel-group hud-cross-pattern-gaps">
+                <span class="hud-sub-label">CROSS-PATTERN GAPS</span>
+                <div class="hud-chips-wrap">
+                  ${report.gaps.filter(g => g.patternId !== activePatternDef.id).map(gap => `
+                    <span class="hud-rel-chip ${gap.severity === 'CRITICAL' ? 'missing-req' : 'missing-rec'}" title="${escapeHtml(gap.message)}">
+                      <span class="chip-icon">${gap.severity === 'CRITICAL' ? '!' : '?'}</span>
+                      <code>${escapeHtml(gap.rel)}</code>
+                      <span class="chip-pattern-tag">[${gap.patternId}]</span>
+                    </span>
+                  `).join('')}
+                </div>
+              </div>
             ` : ''}
           </div>
 
-          <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
-            <button id="btn-prev-q" class="btn btn-secondary" ${activeIdx === 0 ? 'disabled' : ''}>
-              ${iconChevronLeft('', 14)}
-              <span>Previous</span>
-            </button>
-            <button id="btn-skip-q" class="btn btn-secondary" title="Skip this question">
-              <span>Skip</span>
-            </button>
-            <button id="btn-undo" class="btn btn-secondary" ${state.history.length === 0 ? 'disabled' : ''}>
-              ${iconRotateCcw('', 14)}
-              <span>Undo</span>
-            </button>
-            <button id="btn-next-q" class="btn btn-secondary" ${activeIdx >= questions.length - 1 ? 'disabled' : ''}>
-              <span>Next</span>
-              ${iconChevronRight('', 14)}
+          <!-- Pattern Standards (Clickable Links) -->
+          <div class="hud-standards-bar">
+            <span class="hud-sub-label">SPECIFICATIONS &amp; STANDARDS FOR ${activePatternDef.id}:</span>
+            <div class="hud-standards-list">
+              ${standardsToDisplay.map(std => `
+                <a href="${std.url}" target="_blank" rel="noopener noreferrer" class="hud-standard-link" title="Open ${escapeHtml(std.label)} in new tab">
+                  <span>${escapeHtml(std.label)}</span>
+                  <span class="ext-icon">↗</span>
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        </section>
+
+        <!-- Pattern Matrix Strip -->
+        <div class="pattern-matrix-strip" role="group" aria-label="Radical Transparency 8-Pattern Matrix">
+          ${report.patterns.map(p => {
+            const isActive = state.activePatternId === p.patternId;
+            const badgeClass = p.status === 'SATISFIED' ? 'badge-satisfied' : p.status === 'PARTIAL' ? 'badge-partial' : 'badge-unmet';
+            return `
+              <button class="pattern-badge ${isActive ? 'active' : ''} ${badgeClass}" data-pattern="${p.patternId}" title="${p.patternName} (${p.status})">
+                <span class="pattern-badge-id">${p.patternId}</span>
+                <span class="pattern-status-dot"></span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Target Seed Resource Input Bar (STANDARD COMPACT) -->
+        <section class="seed-card" aria-label="Seed Resource Diagnostic Input">
+          <div class="seed-header">
+            <label for="seed-uri-input" class="hud-label" style="margin-bottom: 0;">TARGET SEED RESOURCE URI</label>
+          </div>
+          <div class="terminal-input-group">
+            <span class="protocol-badge">HTTPS</span>
+            <input 
+              type="text" 
+              id="seed-uri-input" 
+              class="form-control-bare" 
+              placeholder="https://example.org/dataset" 
+              value="${escapeHtml(state.seedUri)}" 
+              aria-label="Seed Resource URI"
+            />
+            <button id="btn-extract" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
+              Diagnose (wrx)
             </button>
           </div>
-        </div>
-      ` : `
-        <div class="healthy-state-card" style="text-align: center; padding: 2.5rem 1.5rem;">
-          <div style="color: var(--clinical-emerald); margin-bottom: 0.75rem;">
-            ${iconShieldCheck('', 44)}
+        </section>
+
+        <!-- Provenance Audit Strip -->
+        ${intakeSummaryHtml}
+
+        <!-- Pattern & Provenance Review Matrix Card -->
+        ${reviewMatrixHtml}
+
+        <!-- Smart Suggestions Strip -->
+        ${report.smartInference && (
+          (report.smartInference.detectedProfiles && report.smartInference.detectedProfiles.length > 0) ||
+          (report.smartInference.detectedPids && report.smartInference.detectedPids.length > 0) ||
+          (report.smartInference.detectedApis && report.smartInference.detectedApis.length > 0)
+        ) ? `
+          <div class="smart-suggestions-strip">
+            <div class="smart-suggestions-header">
+              <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
+              <span class="hud-label" style="margin-bottom: 0;">SMART LINKED DATA INFERENCES</span>
+            </div>
+            <div class="smart-suggestions-chips">
+              ${(report.smartInference.detectedProfiles || []).map(p => `
+                <button class="smart-suggestion-chip" data-rel="profile" data-uri="${p.uri}">
+                  <span>Adopt Profile: <strong>${escapeHtml(p.label)}</strong></span>
+                </button>
+              `).join('')}
+              ${(report.smartInference.detectedPids || []).map(p => `
+                <button class="smart-suggestion-chip" data-rel="cite-as" data-uri="${p.uri}">
+                  <span>Adopt PID: <strong>${escapeHtml(p.label)}</strong></span>
+                </button>
+              `).join('')}
+              ${(report.smartInference.detectedApis || []).map(a => `
+                <button class="smart-suggestion-chip" data-rel="service-desc" data-uri="${a.endpoint || ''}">
+                  <span>Link API: <strong>${escapeHtml(a.label || 'API Description')}</strong></span>
+                </button>
+              `).join('')}
+            </div>
           </div>
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
-            All Vital Relations Prescribed!
-          </h3>
-          <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-            Your digital asset conforms to Radical Transparency specifications for ${escapeHtml(activePatternDef.name)}. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
-          </p>
-        </div>
-      `}
-    `;
+        ` : ''}
+
+        <!-- PT-06 Hostwide Sitemap Card -->
+        ${state.activePatternId === 'PT-06' ? `
+          <div class="sitemap-preview-card">
+            <div class="card-header-meta">
+              <span class="card-step-badge">PATTERN PT-06</span>
+              <span class="hud-condition-badge status-healthy">SITEMAP HARVESTING</span>
+            </div>
+            <h3 class="card-title">Hostwide Discovery: sitemap.xml Preview</h3>
+            <p class="card-prompt">
+              Radical Transparency Pattern 06 prescribes embedding <code>&lt;xhtml:link&gt;</code> signposting relations directly into your XML sitemaps to allow crawlers to harvest thousands of datasets in a single crawl pass.
+            </p>
+            <div class="code-preview-container">
+              <pre class="code-preview"><code id="sitemap-xml-content">${escapeHtml(generateSitemapXml(state.seedUri, state.links))}</code></pre>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+              <button id="btn-copy-sitemap" class="btn btn-secondary">
+                ${iconCopy('', 14)}
+                <span>Copy sitemap.xml</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Active Questionnaire or Healthy State -->
+        ${currentQ ? `
+          <div class="question-card severity-${currentQ.severity.toLowerCase()}">
+            <div class="card-header-meta">
+              <span class="card-step-badge">QUESTION ${activeIdx + 1} OF ${questions.length}</span>
+              <span class="hud-condition-badge status-${currentQ.severity.toLowerCase()}">
+                ${currentQ.severity} GAP
+              </span>
+            </div>
+            <h3 class="card-title">${escapeHtml(currentQ.title)}</h3>
+            <p class="card-prompt">${escapeHtml(currentQ.prompt)}</p>
+            
+            <div class="clinical-guidance-panel">
+              <div class="guidance-icon">${iconInfo('', 18)}</div>
+              <div class="guidance-body">
+                <strong>Why This Matters:</strong> ${escapeHtml(currentQ.didacticText)}
+              </div>
+            </div>
+
+            ${currentQ.implementationGuidance ? `
+              <div class="clinical-guidance-panel clinical-implementation-panel" style="margin-top: 0.75rem; border-left-color: var(--clinical-emerald);">
+                <div class="guidance-icon" style="color: var(--clinical-emerald);">${iconSparkles('', 18)}</div>
+                <div class="guidance-body">
+                  <strong>How to Implement:</strong> ${escapeHtml(currentQ.implementationGuidance)}
+                </div>
+              </div>
+            ` : ''}
+
+            ${currentQ.quickOptions.length > 0 ? `
+              <div class="prescription-options">
+                <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
+                ${currentQ.quickOptions.map(opt => `
+                  <button class="btn-prescription-opt" data-uri="${escapeHtml(opt.uri)}">
+                    <span class="prescription-opt-title">${escapeHtml(opt.label)}</span>
+                    <span class="prescription-opt-uri">${escapeHtml(opt.uri)}</span>
+                    ${opt.description ? `<span class="prescription-opt-desc">${escapeHtml(opt.description)}</span>` : ''}
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <div class="terminal-input-group" style="margin-top: 1rem;">
+              <input 
+                type="text" 
+                id="custom-uri-input" 
+                class="form-control-bare" 
+                placeholder="${escapeHtml(currentQ.inputPlaceholder)}" 
+                aria-label="Custom target URI"
+              />
+              <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
+                Prescribe
+              </button>
+              ${currentQ.id === 'q-proactive-missing-ld' ? `
+                <button id="btn-crawl-metadata" class="btn btn-secondary" style="border-radius: 0; padding: 0.5rem 0.85rem;">
+                  ${iconSearch('', 14)} Crawl Metadata
+                </button>
+              ` : ''}
+            </div>
+
+            <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
+              <button id="btn-prev-q" class="btn btn-secondary" ${activeIdx === 0 ? 'disabled' : ''}>
+                ${iconChevronLeft('', 14)}
+                <span>Previous</span>
+              </button>
+              <button id="btn-skip-q" class="btn btn-secondary" title="Skip this question">
+                <span>Skip</span>
+              </button>
+              <button id="btn-undo" class="btn btn-secondary" ${state.history.length === 0 ? 'disabled' : ''}>
+                ${iconRotateCcw('', 14)}
+                <span>Undo</span>
+              </button>
+              <button id="btn-next-q" class="btn btn-secondary" ${activeIdx >= questions.length - 1 ? 'disabled' : ''}>
+                <span>Next</span>
+                ${iconChevronRight('', 14)}
+              </button>
+            </div>
+          </div>
+        ` : `
+          <div class="healthy-state-card" style="text-align: center; padding: 2.5rem 1.5rem;">
+            <div style="color: var(--clinical-emerald); margin-bottom: 0.75rem;">
+              ${iconShieldCheck('', 44)}
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+              All Vital Relations Prescribed!
+            </h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+              Your digital asset conforms to Radical Transparency specifications for ${escapeHtml(activePatternDef.name)}. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
+            </p>
+          </div>
+        `}
+      `;
+    }
 
     // Wire Pattern Matrix Clicks
     panel.querySelectorAll('.pattern-badge').forEach(btn => {
@@ -710,11 +746,17 @@ export function createTriagePanel(store: AppStore): HTMLElement {
     panel.querySelectorAll('.btn-prescription-opt').forEach(btn => {
       btn.addEventListener('click', () => {
         const uri = btn.getAttribute('data-uri');
-        if (uri && currentQ) {
-          store.answerQuestionWithProvenance(currentQ.id, currentQ.rel, uri, 'HUMAN', 'Selected from recommended options');
-          showToast('Prescription Saved', `Assigned ${currentQ.rel} -> ${uri}`, 'info');
-          if (activeIdx < questions.length - 1) {
-            store.setQuestionIndex(activeIdx + 1);
+        const stateNow = store.getState();
+        const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
+        const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
+        const qList = generateTriageQuestions(reportNow, filterNow);
+        const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
+        const q = qList[idx];
+        if (uri && q) {
+          store.answerQuestionWithProvenance(q.id, q.rel, uri, 'HUMAN', 'Selected from recommended options');
+          showToast('Prescription Saved', `Assigned ${q.rel} -> ${uri}`, 'info');
+          if (idx < qList.length - 1) {
+            store.setQuestionIndex(idx + 1);
           }
         }
       });
@@ -722,19 +764,32 @@ export function createTriagePanel(store: AppStore): HTMLElement {
 
     panel.querySelector('#btn-save-answer')?.addEventListener('click', () => {
       const val = (panel.querySelector('#custom-uri-input') as HTMLInputElement)?.value.trim();
-      if (val && currentQ) {
-        store.answerQuestionWithProvenance(currentQ.id, currentQ.rel, val, 'HUMAN', 'Custom user input');
-        showToast('Prescription Saved', `Assigned ${currentQ.rel} -> ${val}`, 'info');
-        if (activeIdx < questions.length - 1) {
-          store.setQuestionIndex(activeIdx + 1);
+      const stateNow = store.getState();
+      const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
+      const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
+      const qList = generateTriageQuestions(reportNow, filterNow);
+      const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
+      const q = qList[idx];
+      if (val && q) {
+        store.answerQuestionWithProvenance(q.id, q.rel, val, 'HUMAN', 'Custom user input');
+        showToast('Prescription Saved', `Assigned ${q.rel} -> ${val}`, 'info');
+        if (idx < qList.length - 1) {
+          store.setQuestionIndex(idx + 1);
         }
       }
     });
 
-    panel.querySelector('#btn-prev-q')?.addEventListener('click', () => store.setQuestionIndex(activeIdx - 1));
-    panel.querySelector('#btn-next-q')?.addEventListener('click', () => store.setQuestionIndex(activeIdx + 1));
+    panel.querySelector('#btn-prev-q')?.addEventListener('click', () => {
+      const idx = store.getState().ui.activeQuestionIndex;
+      store.setQuestionIndex(Math.max(0, idx - 1));
+    });
+    panel.querySelector('#btn-next-q')?.addEventListener('click', () => {
+      const idx = store.getState().ui.activeQuestionIndex;
+      store.setQuestionIndex(idx + 1);
+    });
     panel.querySelector('#btn-skip-q')?.addEventListener('click', () => {
-      store.setQuestionIndex(activeIdx + 1);
+      const idx = store.getState().ui.activeQuestionIndex;
+      store.setQuestionIndex(idx + 1);
       showToast('Question Skipped', 'Moved to next triage item. Gaps remain in review matrix.', 'info');
     });
     panel.querySelector('#btn-undo')?.addEventListener('click', () => {

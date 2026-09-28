@@ -4,8 +4,9 @@ import { AppStore } from '../src/core/state/store';
 import { createTriagePanel } from '../src/ui/components/triage-panel';
 
 describe('Triage Panel Telemetry HUD & Questionnaire', () => {
-  it('should render the Telemetry HUD with score meter and no emojis', () => {
+  it('should render the Telemetry HUD with score meter and no emojis when seed URI is provided', () => {
     const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
     const panel = createTriagePanel(store);
 
     expect(panel.querySelector('.telemetry-hud')).not.toBeNull();
@@ -20,27 +21,34 @@ describe('Triage Panel Telemetry HUD & Questionnaire', () => {
     expect(panel.innerHTML).not.toContain('↶');
   });
 
-  it('should render Intake Hero Card and no questionnaire when no seed URI is provided', () => {
+  it('should highlight seed URI on top and hide Telemetry HUD and Pattern Matrix when no seed URI is provided', () => {
     const store = new AppStore();
     const panel = createTriagePanel(store);
+
+    // Target Seed Resource URI input must be on top and highlighted
+    const highlightedSeedCard = panel.querySelector('.seed-card.highlighted');
+    expect(highlightedSeedCard).not.toBeNull();
+    expect(panel.firstElementChild?.classList.contains('seed-card')).toBe(true);
+
+    // Global vital sign score HUD and pattern strip must be hidden
+    expect(panel.querySelector('.telemetry-hud')).toBeNull();
+    expect(panel.querySelector('.pattern-matrix-strip')).toBeNull();
 
     // No questionnaire card because there is no URI yet
     expect(panel.querySelector('.question-card')).toBeNull();
 
-    // Intake Hero card should be rendered with sample presets
+    // Intake Hero card should be rendered directly below with sample presets
     const heroCard = panel.querySelector('.intake-hero-card');
     expect(heroCard).not.toBeNull();
     expect(heroCard?.textContent).toContain('Target Seed Resource Required');
 
     const presetButtons = heroCard?.querySelectorAll('.btn-preset-card');
     expect(presetButtons?.length).toBeGreaterThanOrEqual(3);
-
-    // Standby status in HUD
-    expect(panel.textContent).toContain('AWAITING RESOURCE (STANDBY)');
   });
 
-  it('should render clickable standards specifications for the active pattern', () => {
+  it('should render clickable standards specifications for the active pattern when seed URI is provided', () => {
     const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
     store.setActivePatternId('PT-01');
     const panel = createTriagePanel(store);
 

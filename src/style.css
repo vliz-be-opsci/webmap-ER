@@ -1193,6 +1193,34 @@ body {
   padding: 1.125rem;
   margin-bottom: 1.5rem;
   box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.seed-card.highlighted {
+  border-color: var(--clinical-cobalt);
+  background: var(--surface-panel);
+  box-shadow: 0 0 0 2px var(--clinical-cobalt-bg), 0 4px 16px rgba(37, 99, 235, 0.12);
+  margin-bottom: 1.25rem;
+}
+
+.seed-card.highlighted .hud-label {
+  color: var(--clinical-cobalt);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.seed-card.highlighted .terminal-input-group {
+  border-color: var(--clinical-cobalt);
+  background: var(--surface-panel);
+  box-shadow: 0 0 0 1px var(--clinical-cobalt);
+}
+
+.seed-card.highlighted .protocol-badge {
+  background: var(--clinical-cobalt-bg);
+  color: var(--clinical-cobalt);
+  border-right-color: var(--clinical-cobalt-border);
 }
 
 .seed-header {
