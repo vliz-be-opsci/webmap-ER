@@ -6,6 +6,7 @@ export interface RTPatternDef {
   roles: string[];
   requiredRelations: string[];
   recommendedRelations: string[];
+  standards: Array<{ label: string; url: string }>;
   docUrl: string;
   grmpTestType: string;
 }
@@ -19,6 +20,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['resource', 'profile', 'profile_description', 'profile_type'],
     requiredRelations: ['profile'],
     recommendedRelations: ['describedby', 'type'],
+    standards: [
+      { label: 'RFC 6906 (Profile Rel)', url: 'https://datatracker.ietf.org/doc/html/rfc6906' },
+      { label: 'W3C DX-PROF', url: 'https://www.w3.org/TR/dx-prof/' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-01-profile-conformity',
     grmpTestType: 'PT-01'
   },
@@ -30,6 +35,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['parent_profile', 'part_profile'],
     requiredRelations: ['http://schema.org/hasPart'],
     recommendedRelations: ['http://schema.org/isPartOf'],
+    standards: [
+      { label: 'Schema.org hasPart', url: 'https://schema.org/hasPart' },
+      { label: 'RFC 8288 (Web Linking)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-02-profile-composition',
     grmpTestType: 'PT-02'
   },
@@ -41,6 +50,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['resource', 'alternate'],
     requiredRelations: ['alternate'],
     recommendedRelations: ['profile', 'type'],
+    standards: [
+      { label: 'RFC 8288 (alternate)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' },
+      { label: 'W3C Conneg by Profile', url: 'https://www.w3.org/TR/dx-prof-conneg/' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-03-content-negotiation',
     grmpTestType: 'PT-03'
   },
@@ -52,6 +65,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['resource', 'metadata', 'cite_as', 'type'],
     requiredRelations: ['describedby'],
     recommendedRelations: ['cite-as', 'type'],
+    standards: [
+      { label: 'RFC 8288 (describedby)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' },
+      { label: 'RFC 9264 (cite-as)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-04-direct-metadata',
     grmpTestType: 'PT-04'
   },
@@ -63,6 +80,11 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['resource', 'service_desc', 'service_doc'],
     requiredRelations: ['service-desc'],
     recommendedRelations: ['service-doc'],
+    standards: [
+      { label: 'RFC 8631 (service-desc)', url: 'https://datatracker.ietf.org/doc/html/rfc8631' },
+      { label: 'OpenAPI 3.1 Spec', url: 'https://spec.openapis.org/oas/v3.1.0' },
+      { label: 'OGC API Common', url: 'https://ogcapi.ogc.org/common/' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-05-subsetting-apis',
     grmpTestType: 'PT-05'
   },
@@ -74,6 +96,11 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['robots', 'sitemap', 'resource'],
     requiredRelations: ['item'],
     recommendedRelations: ['profile', 'describedby', 'cite-as'],
+    standards: [
+      { label: 'Sitemaps.org Protocol', url: 'https://www.sitemaps.org/protocol.html' },
+      { label: 'RFC 9309 (Robots Exclusion)', url: 'https://datatracker.ietf.org/doc/html/rfc9309' },
+      { label: 'RFC 8288 (item rel)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-06-hostwide-discovery',
     grmpTestType: 'PT-06'
   },
@@ -85,6 +112,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['catalog', 'item'],
     requiredRelations: ['item'],
     recommendedRelations: ['collection'],
+    standards: [
+      { label: 'RFC 9264 (item/collection)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' },
+      { label: 'W3C DCAT-3', url: 'https://www.w3.org/TR/vocab-dcat-3/' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-07-catalog-assistance',
     grmpTestType: 'PT-07'
   },
@@ -96,6 +127,10 @@ export const RT_PATTERNS: RTPatternDef[] = [
     roles: ['resource', 'linkset'],
     requiredRelations: ['linkset'],
     recommendedRelations: [],
+    standards: [
+      { label: 'RFC 9264 (Linkset)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' },
+      { label: 'RFC 8288 (Web Linking)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' }
+    ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-08-external-linksets',
     grmpTestType: 'PT-08'
   }

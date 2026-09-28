@@ -1,5 +1,5 @@
 import { AppStore } from '../../core/state/store';
-import { evaluateHealthAndGaps } from '../../core/triage/diagnostics';
+import { evaluateHealthAndGaps, evaluatePatternScore } from '../../core/triage/diagnostics';
 import { generateTriageQuestions } from '../../core/triage/questions';
 import { extractResourceLinks } from '../../core/wrx/extractor';
 import { detectSmartMetadata } from '../../core/wrx/smart-detector';
@@ -8,6 +8,7 @@ import { classifyResourcePattern } from '../../core/wrx/pattern-classifier';
 import { buildIntakeQuestions } from '../../core/triage/intake-model';
 import { generateSitemapXml } from '../../core/export/sitemap';
 import { RT_PATTERNS, getPatternById } from '../../core/rt/patterns';
+import { SAMPLE_PRESETS } from '../../core/rt/presets';
 import { showToast } from './toast';
 import {
   iconInfo,
@@ -32,31 +33,125 @@ export function createTriagePanel(store: AppStore): HTMLElement {
   const panel = document.createElement('div');
   panel.className = 'triage-panel';
 
+  async function runDiagnosisForUri(input: string, preferredPattern?: string) {
+    if (!input) return;
+    store.setSeedUri(input);
+    if (preferredPattern) {
+      store.setActivePatternId(preferredPattern, 'HUMAN_SWITCHED');
+    }
+    showToast('wrx Probing', 'Probing seed resource, robots.txt, and sitemaps...', 'info');
+
+    try {
+      const extraction = await probeHostwideResource(input);
+      const classification = classifyResourcePattern(extraction);
+      const intakeQuestions = buildIntakeQuestions(extraction, classification);
+
+      // Auto-answer high-confidence questions
+      let autoSkippedCount = 0;
+      for (const q of intakeQuestions) {
+        if (q.skipped && q.currentValue) {
+          store.answerQuestionWithProvenance(q.id, q.rel || 'describedby', q.currentValue, q.source, q.evidence);
+          autoSkippedCount++;
+        }
+      }
+
+      // Merge seed links
+      if (extraction.seedExtraction.links.length > 0) {
+        extraction.seedExtraction.links.forEach(l => {
+          store.answerQuestionWithProvenance('seed-link', l.rel, l.target, 'AUTO_LINK_HEADER');
+        });
+      }
+
+      // Check for preset known relations
+      const preset = SAMPLE_PRESETS.find(p => p.uris.resource === input);
+      if (preset) {
+        Object.entries(preset.uris).forEach(([role, uri]) => {
+          if (role !== 'resource') {
+            store.answerQuestionWithProvenance('preset-seed', role, uri, 'AUTO_LINK_HEADER', `Pre-configured in sample preset ${preset.name}`);
+          }
+        });
+      }
+
+      // Set intake summary
+      store.setIntakeSummary({
+        recommendedPatternId: preferredPattern || classification.recommendedPattern,
+        confidence: classification.confidence,
+        scorePercent: classification.scorePercent,
+        rationale: classification.rationale,
+        skippedCount: autoSkippedCount,
+        totalCount: intakeQuestions.length,
+        auditLog: extraction.auditLog
+      });
+
+      // Update active pattern if not manually set
+      if (!preferredPattern) {
+        store.setActivePatternId(classification.recommendedPattern, 'AUTO_DEDUCED');
+      }
+
+      const inference = detectSmartMetadata(extraction.seedExtraction);
+      store.setSmartInference(inference);
+
+      if (extraction.seedExtraction.corsBlocked) {
+        showToast(
+          'CORS Inspection Notice',
+          'Direct network inspection was restricted by CORS. Heuristic diagnostic triage active.',
+          'warning',
+          5000
+        );
+      } else {
+        showToast(
+          'Diagnosis Complete',
+          `Deduced ${preferredPattern || classification.recommendedPattern} (${classification.confidence} confidence). ${autoSkippedCount} questions auto-resolved.`,
+          'success'
+        );
+      }
+    } catch (err) {
+      showToast('Diagnostic Error', 'Failed to inspect hostwide resources. Running fallback triage.', 'warning');
+    }
+  }
+
   function render() {
     const state = store.getState();
+    const hasSeedUri = !!state.seedUri && state.seedUri.trim().length > 0;
     const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
     const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
-    const questions = generateTriageQuestions(report, activeFilter);
+    const questions = hasSeedUri ? generateTriageQuestions(report, activeFilter) : [];
     const activeIdx = Math.min(state.ui.activeQuestionIndex, Math.max(0, questions.length - 1));
     const currentQ = questions[activeIdx];
 
-    const statusClass = `status-${report.vitalStatus.toLowerCase()}`;
-    const statusLabel = report.vitalStatus === 'HEALTHY' 
-      ? 'VITAL CONFORMITY' 
-      : report.vitalStatus === 'UNSTABLE' 
-        ? 'UNSTABLE CONDITION' 
-        : 'CRITICAL TRAUMA';
+    const activePatternDef = getPatternById(state.activePatternId) || RT_PATTERNS[0];
+    const activePatternEval = evaluatePatternScore(state.activePatternId, state.links, hasSeedUri);
 
-    const meterBg = report.vitalStatus === 'HEALTHY'
-      ? 'var(--clinical-emerald)'
-      : report.vitalStatus === 'UNSTABLE'
-        ? 'var(--clinical-amber)'
-        : 'var(--clinical-crimson)';
+    const statusClass = hasSeedUri ? `status-${report.vitalStatus.toLowerCase()}` : 'status-standby';
+    const statusLabel = !hasSeedUri 
+      ? 'AWAITING RESOURCE (STANDBY)'
+      : report.vitalStatus === 'HEALTHY' 
+        ? 'VITAL CONFORMITY' 
+        : report.vitalStatus === 'UNSTABLE' 
+          ? 'UNSTABLE CONDITION' 
+          : 'CRITICAL TRAUMA';
 
+    const meterBg = !hasSeedUri
+      ? 'var(--border-subtle)'
+      : report.vitalStatus === 'HEALTHY'
+        ? 'var(--clinical-emerald)'
+        : report.vitalStatus === 'UNSTABLE'
+          ? 'var(--clinical-amber)'
+          : 'var(--clinical-crimson)';
+
+    const displayScore = hasSeedUri ? report.score : 0;
+    const meterWidth = hasSeedUri ? Math.max(report.score, 4) : 0;
     const intakeSummary = state.intakeSummary;
 
+    // Standards to display for current pattern
+    const standardsToDisplay = (activePatternDef && activePatternDef.standards && activePatternDef.standards.length > 0)
+      ? activePatternDef.standards
+      : [
+          { label: 'RFC 8288 (Web Linking)', url: 'https://datatracker.ietf.org/doc/html/rfc8288' },
+          { label: 'RFC 9264 (Linkset)', url: 'https://datatracker.ietf.org/doc/html/rfc9264' }
+        ];
+
     // Build pattern-specific relations for Provenance Review Matrix
-    const activePatternDef = getPatternById(state.activePatternId);
     const patternRelations: Array<{ rel: string; isRequired: boolean; isPresent: boolean; targetUri: string; source: string; evidence?: string }> = [];
 
     if (activePatternDef) {
@@ -98,9 +193,9 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       <section class="telemetry-hud" aria-label="RT Health Diagnostic Telemetry">
         <div class="hud-top-row">
           <div class="hud-lead">
-            <span class="hud-label">RT VITAL SIGNS SCORE</span>
+            <span class="hud-label">GLOBAL VITAL SIGNS SCORE</span>
             <div class="hud-score-display">
-              <span class="hud-score-value tabular-numbers">${report.score}</span>
+              <span class="hud-score-value tabular-numbers">${displayScore}</span>
               <span class="hud-score-unit">%</span>
             </div>
           </div>
@@ -109,21 +204,104 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             <span>${statusLabel}</span>
           </div>
         </div>
+
         <div class="hud-progress-track">
-          <div class="hud-meter-bar" style="width: ${Math.max(report.score, 4)}%; background: ${meterBg};"></div>
+          <div class="hud-meter-bar" style="width: ${meterWidth}%; background: ${meterBg};"></div>
         </div>
-        <div class="hud-secondary-strip">
-          <div class="hud-meta-item">
-            <span>DETECTED RELS:</span>
-            <strong class="tabular-numbers">${report.presentRelations.length}</strong>
+
+        <!-- Active Pattern Conformity Row -->
+        <div class="hud-pattern-row">
+          <div class="hud-pattern-lead">
+            <span class="hud-pattern-id">${activePatternDef.id}</span>
+            <div class="hud-pattern-meta">
+              <span class="hud-pattern-name">${activePatternDef.name}</span>
+              <span class="hud-pattern-status badge-${activePatternEval.status.toLowerCase()}">${activePatternEval.status} (${hasSeedUri ? activePatternEval.score : 0}%)</span>
+            </div>
           </div>
-          <div class="hud-meta-item">
-            <span>UNRESOLVED GAPS:</span>
-            <strong class="tabular-numbers">${report.gaps.length}</strong>
+        </div>
+
+        <!-- Relation Breakdown Section: Concrete relations and gaps -->
+        <div class="hud-breakdown-section">
+          <!-- Detected Relations -->
+          <div class="hud-rel-group">
+            <span class="hud-sub-label">DETECTED RELATIONS (${report.presentRelations.length})</span>
+            <div class="hud-chips-wrap">
+              ${report.presentRelations.length > 0 ? report.presentRelations.map(rel => `
+                <span class="hud-rel-chip satisfied" title="Detected relation rel=&quot;${escapeHtml(rel)}&quot;">
+                  <span class="chip-icon">✓</span>
+                  <code>${escapeHtml(rel)}</code>
+                </span>
+              `).join('') : `
+                <span class="hud-empty-hint">${hasSeedUri ? 'No relations detected yet on seed' : 'Awaiting seed resource URL to inspect'}</span>
+              `}
+            </div>
           </div>
-          <div class="hud-meta-item">
-            <span>STANDARD:</span>
-            <strong>RFC 8288 / 9264</strong>
+
+          <!-- Active Pattern Specific Gaps -->
+          <div class="hud-rel-group">
+            <span class="hud-sub-label">ACTIVE PATTERN (${activePatternDef.id}) CONFORMANCE GAPS</span>
+            <div class="hud-chips-wrap">
+              ${activePatternEval.missingRequired.map(rel => `
+                <span class="hud-rel-chip missing-req" title="Missing REQUIRED relation for ${activePatternDef.id}">
+                  <span class="chip-icon">!</span>
+                  <code>${escapeHtml(rel)}</code>
+                  <span class="chip-tag tag-req">REQUIRED</span>
+                </span>
+              `).join('')}
+              ${activePatternEval.missingRecommended.map(rel => `
+                <span class="hud-rel-chip missing-rec" title="Missing RECOMMENDED relation for ${activePatternDef.id}">
+                  <span class="chip-icon">?</span>
+                  <code>${escapeHtml(rel)}</code>
+                  <span class="chip-tag tag-rec">RECOMMENDED</span>
+                </span>
+              `).join('')}
+              ${activePatternEval.satisfiedRequired.map(rel => `
+                <span class="hud-rel-chip satisfied" title="Satisfied REQUIRED relation for ${activePatternDef.id}">
+                  <span class="chip-icon">✓</span>
+                  <code>${escapeHtml(rel)}</code>
+                  <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REQ</span>
+                </span>
+              `).join('')}
+              ${activePatternEval.satisfiedRecommended.map(rel => `
+                <span class="hud-rel-chip satisfied" title="Satisfied RECOMMENDED relation for ${activePatternDef.id}">
+                  <span class="chip-icon">✓</span>
+                  <code>${escapeHtml(rel)}</code>
+                  <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REC</span>
+                </span>
+              `).join('')}
+              ${activePatternEval.missingRequired.length === 0 && activePatternEval.missingRecommended.length === 0 ? `
+                <span class="hud-all-satisfied-hint">✓ All relations for ${activePatternDef.id} satisfied</span>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Cross-Pattern Gaps Breakdown (precise pattern attribution) -->
+          ${report.gaps.length > 0 && report.gaps.some(g => g.patternId !== activePatternDef.id) ? `
+            <div class="hud-rel-group hud-cross-pattern-gaps">
+              <span class="hud-sub-label">CROSS-PATTERN GAPS</span>
+              <div class="hud-chips-wrap">
+                ${report.gaps.filter(g => g.patternId !== activePatternDef.id).map(gap => `
+                  <span class="hud-rel-chip ${gap.severity === 'CRITICAL' ? 'missing-req' : 'missing-rec'}" title="${escapeHtml(gap.message)}">
+                    <span class="chip-icon">${gap.severity === 'CRITICAL' ? '!' : '?'}</span>
+                    <code>${escapeHtml(gap.rel)}</code>
+                    <span class="chip-pattern-tag">[${gap.patternId}]</span>
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Pattern Standards (Clickable Links) -->
+        <div class="hud-standards-bar">
+          <span class="hud-sub-label">SPECIFICATIONS &amp; STANDARDS FOR ${activePatternDef.id}:</span>
+          <div class="hud-standards-list">
+            ${standardsToDisplay.map(std => `
+              <a href="${std.url}" target="_blank" rel="noopener noreferrer" class="hud-standard-link" title="Open ${escapeHtml(std.label)} in new tab">
+                <span>${escapeHtml(std.label)}</span>
+                <span class="ext-icon">↗</span>
+              </a>
+            `).join('')}
           </div>
         </div>
       </section>
@@ -154,7 +332,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             id="seed-uri-input" 
             class="form-control-bare" 
             placeholder="https://example.org/dataset" 
-            value="${state.seedUri}" 
+            value="${escapeHtml(state.seedUri)}" 
             aria-label="Seed Resource URI"
           />
           <button id="btn-extract" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
@@ -179,7 +357,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             ${intakeSummary.auditLog.map(audit => `
               <span class="provenance-check-item ${audit.status === 'SUCCESS' ? 'status-success' : 'status-cors'}">
                 <span>${audit.status === 'SUCCESS' ? '✓' : '!'}</span>
-                <span>${audit.target.split('/').pop() || audit.target}: ${audit.status}</span>
+                <span>${escapeHtml(audit.target.split('/').pop() || audit.target)}: ${audit.status}</span>
               </span>
             `).join('')}
             <span class="provenance-check-item">
@@ -198,7 +376,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           </div>
           <h3 class="card-title">Pattern Conformance & Provenance Review</h3>
           <p class="card-prompt">
-            Review relations derived by wrx hostwide discovery and user prescriptions for <strong>${activePatternDef ? activePatternDef.name : state.activePatternId}</strong>. Switching patterns immediately adapts the audit requirements and triage questions.
+            Review relations derived by wrx hostwide discovery and user prescriptions for <strong>${escapeHtml(activePatternDef ? activePatternDef.name : state.activePatternId)}</strong>. Switching patterns immediately adapts the audit requirements and triage questions.
           </p>
 
           <table class="provenance-matrix-table">
@@ -221,12 +399,12 @@ export function createTriagePanel(store: AppStore): HTMLElement {
                 return `
                   <tr>
                     <td>
-                      <strong>${item.rel}</strong>
+                      <strong>${escapeHtml(item.rel)}</strong>
                       ${item.isRequired ? '<span class="req-tag" style="font-size: 0.65rem; color: var(--clinical-crimson); margin-left: 4px;">REQUIRED</span>' : '<span class="req-tag" style="font-size: 0.65rem; color: var(--text-secondary); margin-left: 4px;">RECOMMENDED</span>'}
                     </td>
                     <td><code>${escapeHtml(item.targetUri)}</code></td>
                     <td>
-                      <span class="provenance-badge ${badgeClass}">${item.source}</span>
+                      <span class="provenance-badge ${badgeClass}">${escapeHtml(item.source)}</span>
                       ${item.evidence ? `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px;">${escapeHtml(item.evidence)}</div>` : ''}
                     </td>
                   </tr>
@@ -274,17 +452,17 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           <div class="smart-suggestions-chips">
             ${(report.smartInference.detectedProfiles || []).map(p => `
               <button class="smart-suggestion-chip" data-rel="profile" data-uri="${p.uri}">
-                <span>Adopt Profile: <strong>${p.label}</strong></span>
+                <span>Adopt Profile: <strong>${escapeHtml(p.label)}</strong></span>
               </button>
             `).join('')}
             ${(report.smartInference.detectedPids || []).map(p => `
               <button class="smart-suggestion-chip" data-rel="cite-as" data-uri="${p.uri}">
-                <span>Adopt PID: <strong>${p.label}</strong></span>
+                <span>Adopt PID: <strong>${escapeHtml(p.label)}</strong></span>
               </button>
             `).join('')}
             ${(report.smartInference.detectedApis || []).map(a => `
-              <button class="smart-suggestion-chip" data-rel="service-desc" data-uri="${a.endpoint}">
-                <span>Link API: <strong>${a.label}</strong></span>
+              <button class="smart-suggestion-chip" data-rel="service-desc" data-uri="${a.endpoint || ''}">
+                <span>Link API: <strong>${escapeHtml(a.label || 'API Description')}</strong></span>
               </button>
             `).join('')}
           </div>
@@ -292,7 +470,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       ` : ''}
 
       <!-- PT-06 Hostwide Sitemap Card -->
-      ${state.activePatternId === 'PT-06' ? `
+      ${state.activePatternId === 'PT-06' && hasSeedUri ? `
         <div class="sitemap-preview-card">
           <div class="card-header-meta">
             <span class="card-step-badge">PATTERN PT-06</span>
@@ -314,8 +492,36 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         </div>
       ` : ''}
 
-      <!-- Active Questionnaire or Healthy State -->
-      ${currentQ ? `
+      <!-- Active Questionnaire or Healthy State or Awaiting Resource Intake Hero -->
+      ${!hasSeedUri ? `
+        <div class="intake-hero-card">
+          <div class="intake-hero-header">
+            <div class="intake-hero-icon">${iconSparkles('', 26)}</div>
+            <div class="intake-hero-text">
+              <h3 class="intake-hero-title">Target Seed Resource Required</h3>
+              <p class="intake-hero-desc">
+                Provide a dataset, web service, or metadata landing page URI above to initiate automated wrx inspection and triage against the 8 Radical Transparency patterns.
+              </p>
+            </div>
+          </div>
+
+          <div class="intake-hero-presets">
+            <span class="hud-label">OR QUICKSTART WITH A PRE-CONFIGURED RESEARCH DATASET</span>
+            <div class="preset-cards-grid">
+              ${SAMPLE_PRESETS.map(preset => `
+                <button class="btn-preset-card" data-preset-id="${preset.id}">
+                  <div class="preset-card-top">
+                    <strong class="preset-card-name">${escapeHtml(preset.name)}</strong>
+                    <span class="preset-target-tag">${preset.targetPattern}</span>
+                  </div>
+                  <p class="preset-card-desc">${escapeHtml(preset.description)}</p>
+                  <div class="preset-card-action">Load Dataset &amp; Diagnose →</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      ` : currentQ ? `
         <div class="question-card severity-${currentQ.severity.toLowerCase()}">
           <div class="card-header-meta">
             <span class="card-step-badge">QUESTION ${activeIdx + 1} OF ${questions.length}</span>
@@ -323,13 +529,13 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               ${currentQ.severity} GAP
             </span>
           </div>
-          <h3 class="card-title">${currentQ.title}</h3>
-          <p class="card-prompt">${currentQ.prompt}</p>
+          <h3 class="card-title">${escapeHtml(currentQ.title)}</h3>
+          <p class="card-prompt">${escapeHtml(currentQ.prompt)}</p>
           
           <div class="clinical-guidance-panel">
             <div class="guidance-icon">${iconInfo('', 18)}</div>
             <div class="guidance-body">
-              <strong>Why This Matters:</strong> ${currentQ.didacticText}
+              <strong>Why This Matters:</strong> ${escapeHtml(currentQ.didacticText)}
             </div>
           </div>
 
@@ -346,10 +552,10 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             <div class="prescription-options">
               <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
               ${currentQ.quickOptions.map(opt => `
-                <button class="btn-prescription-opt" data-uri="${opt.uri}">
-                  <span class="prescription-opt-title">${opt.label}</span>
-                  <span class="prescription-opt-uri">${opt.uri}</span>
-                  ${opt.description ? `<span class="prescription-opt-desc">${opt.description}</span>` : ''}
+                <button class="btn-prescription-opt" data-uri="${escapeHtml(opt.uri)}">
+                  <span class="prescription-opt-title">${escapeHtml(opt.label)}</span>
+                  <span class="prescription-opt-uri">${escapeHtml(opt.uri)}</span>
+                  ${opt.description ? `<span class="prescription-opt-desc">${escapeHtml(opt.description)}</span>` : ''}
                 </button>
               `).join('')}
             </div>
@@ -360,7 +566,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               type="text" 
               id="custom-uri-input" 
               class="form-control-bare" 
-              placeholder="${currentQ.inputPlaceholder}" 
+              placeholder="${escapeHtml(currentQ.inputPlaceholder)}" 
               aria-label="Custom target URI"
             />
             <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
@@ -400,7 +606,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             All Vital Relations Prescribed!
           </h3>
           <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-            Your digital asset conforms to Radical Transparency specifications. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
+            Your digital asset conforms to Radical Transparency specifications for ${escapeHtml(activePatternDef.name)}. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
           </p>
         </div>
       `}
@@ -415,6 +621,19 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           store.setActivePatternId('ALL', 'HUMAN_SWITCHED');
         } else {
           store.setActivePatternId(pid, 'HUMAN_SWITCHED');
+        }
+      });
+    });
+
+    // Wire Preset Cards in Intake Hero
+    panel.querySelectorAll('.btn-preset-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-preset-id');
+        const preset = SAMPLE_PRESETS.find(p => p.id === id);
+        if (preset) {
+          const inputEl = panel.querySelector('#seed-uri-input') as HTMLInputElement;
+          if (inputEl) inputEl.value = preset.uris.resource;
+          runDiagnosisForUri(preset.uris.resource, preset.targetPattern);
         }
       });
     });
@@ -463,61 +682,11 @@ export function createTriagePanel(store: AppStore): HTMLElement {
     // Wire Hostwide wrx Diagnosis
     panel.querySelector('#btn-extract')?.addEventListener('click', async () => {
       const input = (panel.querySelector('#seed-uri-input') as HTMLInputElement)?.value.trim();
-      if (!input) return;
-      store.setSeedUri(input);
-      showToast('wrx Probing', 'Probing seed resource, robots.txt, and sitemaps...', 'info');
-
-      const extraction = await probeHostwideResource(input);
-      const classification = classifyResourcePattern(extraction);
-      const intakeQuestions = buildIntakeQuestions(extraction, classification);
-
-      // Auto-answer high-confidence questions
-      let autoSkippedCount = 0;
-      for (const q of intakeQuestions) {
-        if (q.skipped && q.currentValue) {
-          store.answerQuestionWithProvenance(q.id, q.rel || 'describedby', q.currentValue, q.source, q.evidence);
-          autoSkippedCount++;
-        }
+      if (!input) {
+        showToast('Input Required', 'Please enter a target seed resource URI to diagnose.', 'warning');
+        return;
       }
-
-      // Merge seed links
-      if (extraction.seedExtraction.links.length > 0) {
-        extraction.seedExtraction.links.forEach(l => {
-          store.answerQuestionWithProvenance('seed-link', l.rel, l.target, 'AUTO_LINK_HEADER');
-        });
-      }
-
-      // Set intake summary
-      store.setIntakeSummary({
-        recommendedPatternId: classification.recommendedPattern,
-        confidence: classification.confidence,
-        scorePercent: classification.scorePercent,
-        rationale: classification.rationale,
-        skippedCount: autoSkippedCount,
-        totalCount: intakeQuestions.length,
-        auditLog: extraction.auditLog
-      });
-
-      // Update active pattern
-      store.setActivePatternId(classification.recommendedPattern, 'AUTO_DEDUCED');
-
-      const inference = detectSmartMetadata(extraction.seedExtraction);
-      store.setSmartInference(inference);
-
-      if (extraction.seedExtraction.corsBlocked) {
-        showToast(
-          'CORS Inspection Notice',
-          'Direct network inspection was restricted by CORS. Heuristic diagnostic triage active.',
-          'warning',
-          5000
-        );
-      } else {
-        showToast(
-          'Diagnosis Complete',
-          `Deduced ${classification.recommendedPattern} (${classification.confidence} confidence). ${autoSkippedCount} questions auto-resolved.`,
-          'success'
-        );
-      }
+      await runDiagnosisForUri(input);
     });
 
     // Wire Proactive Secondary Crawl

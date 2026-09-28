@@ -1,5 +1,5 @@
 import { DiscoveredLink } from '../wrx/types';
-import { RT_PATTERNS, RTPatternDef } from '../rt/patterns';
+import { RT_PATTERNS, RTPatternDef, getPatternById } from '../rt/patterns';
 import { SmartInferenceResult } from '../wrx/smart-detector';
 
 export interface RTGap {
@@ -15,20 +15,80 @@ export interface PatternConformity {
   name: string;
   patternName: string;
   status: 'SATISFIED' | 'PARTIAL' | 'UNSATISFIED';
+  score: number; // 0 - 100 pattern-specific conformity score
   presentRelations: string[];
+  satisfiedRequired: string[];
+  satisfiedRecommended: string[];
   missingRequired: string[];
   missingRecommended: string[];
+  standards: Array<{ label: string; url: string }>;
 }
 
 export interface DiagnosticReport {
   targetUrl: string;
-  score: number; // 0 - 100 Baseline Vital Signs Score
+  score: number; // 0 - 100 Global Baseline Vital Signs Score
   vitalStatus: 'CRITICAL' | 'UNSTABLE' | 'HEALTHY';
   presentRelations: string[];
   patterns: PatternConformity[];
   gaps: RTGap[];
   satisfiedPatterns: string[];
   smartInference?: SmartInferenceResult;
+}
+
+export function evaluatePatternScore(
+  patternId: string,
+  links: DiscoveredLink[],
+  hasSeedUri: boolean = true
+): PatternConformity {
+  const def = getPatternById(patternId) || RT_PATTERNS[0];
+  const rels = new Set(links.map(l => l.rel.toLowerCase()));
+
+  const present = def.requiredRelations
+    .concat(def.recommendedRelations)
+    .filter(rel => rels.has(rel.toLowerCase()));
+
+  const satisfiedReq = def.requiredRelations.filter(rel => rels.has(rel.toLowerCase()));
+  const missingReq = def.requiredRelations.filter(rel => !rels.has(rel.toLowerCase()));
+  const satisfiedRec = def.recommendedRelations.filter(rel => rels.has(rel.toLowerCase()));
+  const missingRec = def.recommendedRelations.filter(rel => !rels.has(rel.toLowerCase()));
+
+  let status: PatternConformity['status'] = 'UNSATISFIED';
+  if (missingReq.length === 0) {
+    status = 'SATISFIED';
+  } else if (present.length > 0) {
+    status = 'PARTIAL';
+  }
+
+  let patternScore = 0;
+  if (hasSeedUri) {
+    if (def.requiredRelations.length > 0 && def.recommendedRelations.length > 0) {
+      const reqRatio = satisfiedReq.length / def.requiredRelations.length;
+      const recRatio = satisfiedRec.length / def.recommendedRelations.length;
+      patternScore = Math.round((reqRatio * 75) + (recRatio * 25));
+    } else if (def.requiredRelations.length > 0) {
+      const reqRatio = satisfiedReq.length / def.requiredRelations.length;
+      patternScore = Math.round(reqRatio * 100);
+    } else if (def.recommendedRelations.length > 0) {
+      const recRatio = satisfiedRec.length / def.recommendedRelations.length;
+      patternScore = Math.round(recRatio * 100);
+    } else {
+      patternScore = 100;
+    }
+  }
+
+  return {
+    patternId: def.id,
+    name: def.name,
+    patternName: def.name,
+    status,
+    score: patternScore,
+    presentRelations: present,
+    satisfiedRequired: satisfiedReq,
+    satisfiedRecommended: satisfiedRec,
+    missingRequired: missingReq,
+    missingRecommended: missingRec,
+    standards: def.standards || []
+  };
 }
 
 export function evaluateHealthAndGaps(
@@ -42,29 +102,7 @@ export function evaluateHealthAndGaps(
 
   // 1. Evaluate individual pattern conformities
   const patterns: PatternConformity[] = RT_PATTERNS.map((def: RTPatternDef) => {
-    const present = def.requiredRelations
-      .concat(def.recommendedRelations)
-      .filter(rel => rels.has(rel.toLowerCase()));
-
-    const missingReq = def.requiredRelations.filter(rel => !rels.has(rel.toLowerCase()));
-    const missingRec = def.recommendedRelations.filter(rel => !rels.has(rel.toLowerCase()));
-
-    let status: PatternConformity['status'] = 'UNSATISFIED';
-    if (missingReq.length === 0) {
-      status = 'SATISFIED';
-    } else if (present.length > 0) {
-      status = 'PARTIAL';
-    }
-
-    return {
-      patternId: def.id,
-      name: def.name,
-      patternName: def.name,
-      status,
-      presentRelations: present,
-      missingRequired: missingReq,
-      missingRecommended: missingRec
-    };
+    return evaluatePatternScore(def.id, links, !!url);
   });
 
   // 2. Compute Baseline Vital Signs Score (0 - 100)
