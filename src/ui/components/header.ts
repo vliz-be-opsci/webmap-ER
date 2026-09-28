@@ -33,31 +33,33 @@ export function createHeader(store: AppStore, onOpenTutorial: () => void, onOpen
       <span class="badge-tag">Radical Transparency Triage</span>
     </div>
     <div class="header-actions">
-      <select id="preset-select" class="btn btn-select" aria-label="Load Sample Preset">
+      <select id="preset-select" class="btn btn-select preset-dropdown" aria-label="Load Sample Preset">
         <option value="">-- Load Sample Preset --</option>
         ${SAMPLE_PRESETS.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
       </select>
       <div class="view-toggles" role="group" aria-label="Layout View Modes">
         <button id="btn-view-triage" class="btn-segment" title="Extended Questionnaire">
           ${iconListChecks('', 15)}
-          <span>Questionnaire</span>
+          <span class="segment-label">Questionnaire</span>
         </button>
         <button id="btn-view-balanced" class="btn-segment active" title="Balanced View">
           ${iconColumns2('', 15)}
-          <span>Balanced</span>
+          <span class="segment-label">Balanced</span>
         </button>
         <button id="btn-view-graph" class="btn-segment" title="Extended Graph">
           ${iconNetwork('', 15)}
-          <span>Graph</span>
+          <span class="segment-label">Graph</span>
         </button>
       </div>
       <button id="btn-export" class="btn btn-primary" title="Export Remediations and Systemic IT Ticket">
         ${iconFileCode('', 15)}
-        <span>Export & IT Ticket</span>
+        <span class="btn-text-full">Export & IT Ticket</span>
+        <span class="btn-text-short">Export</span>
       </button>
       <button id="btn-share" class="btn btn-secondary" title="Copy Shareable Permalink">
         ${iconLink('', 15)}
-        <span>Copy Permalink</span>
+        <span class="btn-text-full">Copy Permalink</span>
+        <span class="btn-text-short">Share</span>
       </button>
       <button id="btn-theme-toggle" class="btn btn-icon" title="Toggle Light / Dark Theme" aria-label="Toggle theme">
         ${getThemeIcon()}
