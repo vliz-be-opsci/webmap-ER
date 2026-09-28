@@ -4,7 +4,7 @@ export interface DiscoveredLink {
   type?: string;
   profile?: string;
   anchor?: string;
-  source: 'link-header' | 'html-link' | 'linkset' | 'script-rdf' | 'conneg';
+  source: 'link-header' | 'html-link' | 'linkset' | 'script-rdf' | 'conneg' | 'sitemap-xml';
 }
 
 export interface ExtractionResult {
