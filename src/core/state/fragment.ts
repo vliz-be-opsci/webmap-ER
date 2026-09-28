@@ -106,11 +106,8 @@ export async function encodeSessionToFragment(state: AppState): Promise<string> 
 
   if (typeof CompressionStream !== 'undefined') {
     try {
-      const cs = new CompressionStream('deflate-raw');
-      const writer = cs.writable.getWriter();
-      await writer.write(data);
-      await writer.close();
-      const compressedBuffer = await new Response(cs.readable).arrayBuffer();
+      const stream = new Response(data).body!.pipeThrough(new CompressionStream('deflate-raw'));
+      const compressedBuffer = await new Response(stream).arrayBuffer();
       const base64 = bufferToBase64Url(new Uint8Array(compressedBuffer));
       return `#s1=${base64}`;
     } catch {}
@@ -131,11 +128,8 @@ export async function decodeFragmentToState(hash: string): Promise<Partial<AppSt
     const bytes = base64UrlToBuffer(payload);
     let json = '';
     if ((prefix === 's1' || prefix === 'gz') && typeof DecompressionStream !== 'undefined') {
-      const ds = new DecompressionStream('deflate-raw');
-      const writer = ds.writable.getWriter();
-      await writer.write(bytes as BufferSource);
-      await writer.close();
-      const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
+      const stream = new Response(bytes as BufferSource).body!.pipeThrough(new DecompressionStream('deflate-raw'));
+      const decompressedBuffer = await new Response(stream).arrayBuffer();
       json = new TextDecoder().decode(decompressedBuffer);
     } else {
       json = new TextDecoder().decode(bytes);

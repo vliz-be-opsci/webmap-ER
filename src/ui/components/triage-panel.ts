@@ -733,6 +733,24 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       showToast('Copied', 'Sitemap XML copied to clipboard.', 'success');
     });
 
+    // Wire Enter key on seed URI input
+    const seedInputEl = panel.querySelector('#seed-uri-input') as HTMLInputElement;
+    seedInputEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        panel.querySelector<HTMLButtonElement>('#btn-extract')?.click();
+      }
+    });
+
+    // Wire Enter key on custom URI input
+    const customInputEl = panel.querySelector('#custom-uri-input') as HTMLInputElement;
+    customInputEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        panel.querySelector<HTMLButtonElement>('#btn-save-answer')?.click();
+      }
+    });
+
     // Wire Hostwide wrx Diagnosis
     panel.querySelector('#btn-extract')?.addEventListener('click', async () => {
       const input = (panel.querySelector('#seed-uri-input') as HTMLInputElement)?.value.trim();
