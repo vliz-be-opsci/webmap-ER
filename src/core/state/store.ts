@@ -293,6 +293,21 @@ export class AppStore {
     this.notify();
   }
 
+  public restoreSession(partialState: Partial<AppState>): void {
+    if (!partialState) return;
+    this.state = {
+      ...this.state,
+      ...partialState,
+      ui: {
+        ...this.state.ui,
+        ...(partialState.ui || {})
+      },
+      links: partialState.links ? [...partialState.links] : this.state.links,
+      provenanceHistory: partialState.provenanceHistory ? [...partialState.provenanceHistory] : this.state.provenanceHistory
+    };
+    this.notify();
+  }
+
   public reset(): void {
     this.state.seedUri = '';
     this.state.links = [];

@@ -21,12 +21,12 @@ describe('State Store & Fragment Persistence', () => {
     store.answerQuestion('q-profile', 'profile', 'https://example.org/prof');
 
     const fragment = await encodeStateToFragment(store.getState());
-    expect(fragment.startsWith('#gz=') || fragment.startsWith('#raw=')).toBe(true);
+    expect(fragment.startsWith('#s1=') || fragment.startsWith('#gz=') || fragment.startsWith('#raw=')).toBe(true);
 
     const recovered = await decodeStateFromFragment(fragment);
     expect(recovered).toBeDefined();
     expect(recovered?.seedUri).toBe('https://example.org/test');
-    expect(recovered?.links[0].target).toBe('https://example.org/prof');
+    expect(recovered?.links?.[0]?.target).toBe('https://example.org/prof');
   });
 
   it('records provenance when an answer is saved', () => {

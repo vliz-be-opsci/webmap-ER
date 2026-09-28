@@ -34,7 +34,7 @@ describe('End-to-End State & Triage Workflow', () => {
 
     expect(restored).toBeDefined();
     expect(restored?.seedUri).toBe(preset.uris.resource);
-    expect(restored?.links.some(l => l.target === preset.uris.profile)).toBe(true);
+    expect(restored?.links?.some(l => l.target === preset.uris.profile)).toBe(true);
   });
 
   it('should execute end-to-end hostwide intake, auto-skip, pattern deduction, and provenance persistence', async () => {

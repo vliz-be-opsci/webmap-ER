@@ -1,7 +1,106 @@
-import { AppState } from './store';
+import type { AppState, RelationProvenance } from './store';
+import type { DiscoveredLink } from '../wrx/types';
 
-export async function encodeStateToFragment(state: AppState): Promise<string> {
-  const json = JSON.stringify(state);
+export interface SessionSnapshot {
+  v: 1; // schema version
+  u: string; // seedUri
+  p: string; // activePatternId
+  l: Array<{
+    r: string; // rel
+    t: string; // target
+    s: string; // source
+  }>;
+  pr: Array<{
+    r: string; // rel
+    t: string; // targetUri
+    s: string; // source
+    e?: string; // evidence
+  }>;
+  ui?: {
+    m?: 'balanced' | 'extended-triage' | 'extended-graph';
+    q?: number;
+    r?: boolean;
+    x?: boolean;
+  };
+}
+
+export function stateToSnapshot(state: AppState): SessionSnapshot {
+  const sortedLinks = [...(state.links || [])]
+    .map(l => ({ r: l.rel, t: l.target, s: l.source }))
+    .sort((a, b) => a.r.localeCompare(b.r) || a.t.localeCompare(b.t));
+
+  const sortedProvenance = [...(state.provenanceHistory || [])]
+    .filter(p => p.rel !== 'pattern-focus')
+    .map(p => ({
+      r: p.rel,
+      t: p.targetUri,
+      s: p.source,
+      ...(p.evidence ? { e: p.evidence } : {})
+    }))
+    .sort((a, b) => a.r.localeCompare(b.r) || a.t.localeCompare(b.t));
+
+  const snapshot: SessionSnapshot = {
+    v: 1,
+    u: state.seedUri || '',
+    p: state.activePatternId || 'PT-01',
+    l: sortedLinks,
+    pr: sortedProvenance,
+    ui: {
+      m: state.ui?.viewMode || 'balanced',
+      q: state.ui?.activeQuestionIndex || 0,
+      r: !!state.ui?.showIntakeReview,
+      x: state.ui?.showMissingLinks !== false
+    }
+  };
+
+  return snapshot;
+}
+
+export function snapshotToState(snapshot: SessionSnapshot): Partial<AppState> {
+  const links: DiscoveredLink[] = (snapshot.l || []).map(l => ({
+    rel: l.r,
+    target: l.t,
+    source: (l.s as any) || 'link-header'
+  }));
+
+  const provenanceHistory: RelationProvenance[] = (snapshot.pr || []).map(p => ({
+    rel: p.r,
+    targetUri: p.t,
+    source: p.s,
+    evidence: p.e,
+    timestamp: 0
+  }));
+
+  return {
+    version: 1,
+    seedUri: snapshot.u || '',
+    activePatternId: snapshot.p || 'PT-01',
+    links,
+    provenanceHistory,
+    ui: {
+      viewMode: snapshot.ui?.m || 'balanced',
+      activeQuestionIndex: snapshot.ui?.q || 0,
+      showIntakeReview: !!snapshot.ui?.r,
+      showMissingLinks: snapshot.ui?.x !== false
+    }
+  };
+}
+
+export function canonicalJsonStringify(obj: any): string {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(canonicalJsonStringify).join(',') + ']';
+  }
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ':' + canonicalJsonStringify(obj[k]));
+  return '{' + pairs.join(',') + '}';
+}
+
+export async function encodeSessionToFragment(state: AppState): Promise<string> {
+  const snapshot = stateToSnapshot(state);
+  const json = canonicalJsonStringify(snapshot);
   const encoder = new TextEncoder();
   const data = encoder.encode(json);
 
@@ -13,36 +112,50 @@ export async function encodeStateToFragment(state: AppState): Promise<string> {
       await writer.close();
       const compressedBuffer = await new Response(cs.readable).arrayBuffer();
       const base64 = bufferToBase64Url(new Uint8Array(compressedBuffer));
-      return `#gz=${base64}`;
+      return `#s1=${base64}`;
     } catch {}
   }
   return `#raw=${bufferToBase64Url(data)}`;
 }
 
-export async function decodeStateFromFragment(hash: string): Promise<AppState | null> {
+export async function decodeFragmentToState(hash: string): Promise<Partial<AppState> | null> {
   if (!hash || !hash.includes('=')) return null;
-  const [prefix, payload] = hash.replace(/^#/, '').split('=');
+  const hashClean = hash.replace(/^#/, '');
+  const eqIdx = hashClean.indexOf('=');
+  if (eqIdx === -1) return null;
+  const prefix = hashClean.slice(0, eqIdx);
+  const payload = hashClean.slice(eqIdx + 1);
   if (!payload) return null;
 
   try {
     const bytes = base64UrlToBuffer(payload);
-    if (prefix === 'gz' && typeof DecompressionStream !== 'undefined') {
+    let json = '';
+    if ((prefix === 's1' || prefix === 'gz') && typeof DecompressionStream !== 'undefined') {
       const ds = new DecompressionStream('deflate-raw');
       const writer = ds.writable.getWriter();
       await writer.write(bytes as BufferSource);
       await writer.close();
       const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
-      const json = new TextDecoder().decode(decompressedBuffer);
-      return JSON.parse(json);
+      json = new TextDecoder().decode(decompressedBuffer);
     } else {
-      const json = new TextDecoder().decode(bytes);
-      return JSON.parse(json);
+      json = new TextDecoder().decode(bytes);
     }
+
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    if ('v' in parsed && 'u' in parsed && 'l' in parsed) {
+      return snapshotToState(parsed as SessionSnapshot);
+    }
+
+    return parsed as Partial<AppState>;
   } catch (err) {
-    console.warn('Failed to decompress URI fragment state', err);
     return null;
   }
 }
+
+export const encodeStateToFragment = encodeSessionToFragment;
+export const decodeStateFromFragment = decodeFragmentToState;
 
 function bufferToBase64Url(uint8: Uint8Array): string {
   let binary = '';

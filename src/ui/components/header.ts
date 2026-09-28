@@ -124,13 +124,31 @@ export function createHeader(store: AppStore, onOpenTutorial: () => void, onOpen
   header.querySelector('#btn-tutorial')?.addEventListener('click', onOpenTutorial);
   header.querySelector('#btn-share')?.addEventListener('click', async () => {
     const hash = await encodeStateToFragment(store.getState());
-    window.location.hash = hash;
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    const newUrl = `${window.location.pathname}${window.location.search}${hash}`;
+    window.history.replaceState(null, '', newUrl);
+
+    const urlToCopy = window.location.href;
+    let copied = false;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       try {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(urlToCopy);
+        copied = true;
       } catch {}
     }
-    showToast('Permalink Copied', 'State URL copied to clipboard.', 'success');
+    if (!copied && typeof document !== 'undefined') {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = urlToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        copied = true;
+      } catch {}
+    }
+    showToast('Permalink Copied', 'Session link copied to clipboard.', 'success');
   });
 
   return header;
