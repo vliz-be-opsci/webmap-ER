@@ -3,9 +3,22 @@ import { DiscoveredLink } from '../wrx/types';
 import { generateHttpHeaders } from './link-headers';
 import { RT_PATTERNS } from '../rt/patterns';
 
-export function generateSystemicItTicket(report: DiagnosticReport, links: DiscoveredLink[]): string {
+export interface DelegatedTicketRequirement {
+  rel: string;
+  source: string;
+  evidence?: string;
+}
+
+export function generateSystemicItTicket(
+  report: DiagnosticReport,
+  links: DiscoveredLink[],
+  provenanceHistory: DelegatedTicketRequirement[] = []
+): string {
   const headers = generateHttpHeaders(links);
   const targetUrl = report.targetUrl || 'https://example.org/resource';
+
+  // Extract relations specifically flagged / delegated by user in triage
+  const delegatedReqs = provenanceHistory.filter(p => p.source === 'DELEGATED_IT_TICKET');
 
   // Build ASCII Box-and-Wire Network Topology Diagram
   const asciiTopology = generateAsciiTopology(targetUrl, links);
@@ -15,13 +28,23 @@ export function generateSystemicItTicket(report: DiagnosticReport, links: Discov
     p => `- **${p.id} (${p.name})**: [EOSC IF Specification & Test Cases](${p.docUrl}) (GRMP Type: \`${p.grmpTestType}\`)`
   ).join('\n');
 
+  const delegatedSection = delegatedReqs.length > 0 ? `
+### Prioritized Remediation Requirements (Flagged in Triage)
+The catalog curator specifically designated the following relations as critical server-wide infrastructure requirements:
+${delegatedReqs.map(d => {
+  const gap = report.gaps.find(g => g.rel.toLowerCase() === d.rel.toLowerCase());
+  const reason = gap ? gap.didacticReason : 'Required standard signposting relation for harvester interoperability';
+  return `- **\`rel="${d.rel}"\`**: ${reason}\n  *Directive:* Configure server/proxy middleware to inject standard \`<target-uri>; rel="${d.rel}"\` response headers across all published assets.`;
+}).join('\n')}
+` : '';
+
   return `## [Architecture / Interoperability] Implement Server-Wide RFC 8288 Link Headers & RT Sitemaps for Machine Harvesters
 
 ### Background & Business Impact
 Automated research infrastructure harvesters (EOSC, OpenAIRE, thematic disciplinary aggregators) require transparent, machine-readable discovery of dataset schemas, metadata, and persistent identifiers (PIDs) using **RFC 8288 HTTP Link headers**, **RFC 9264 Linksets**, and XML sitemaps.
 
 Current HTTP responses across our digital asset catalog lack these standardized headers, hindering indexation and failing compliance audits under the **EOSC Interoperability Framework (EOSC IF)**.
-
+${delegatedSection}
 ### Pilot Exemplar Tested
 - **Test Endpoint:** \`${targetUrl}\`
 - **Current Vital Signs Score:** \`${report.score} / 100\` (${report.vitalStatus})
@@ -45,11 +68,17 @@ ${headers.raw}
 **Nginx Snippet:**
 \`\`\`nginx
 ${headers.nginx}
+${delegatedReqs.length > 0 ? `
+# Curator-Flagged Remediation Directives (Pending Configuration):
+${delegatedReqs.map(d => `# add_header Link "<https://example.org/path/to/${d.rel}>; rel="${d.rel}"" always;`).join('\n')}` : ''}
 \`\`\`
 
 **Apache Snippet:**
 \`\`\`apache
 ${headers.apache}
+${delegatedReqs.length > 0 ? `
+# Curator-Flagged Remediation Directives (Pending Configuration):
+${delegatedReqs.map(d => `# Header append Link "<https://example.org/path/to/${d.rel}>; rel="${d.rel}""`).join('\n')}` : ''}
 \`\`\`
 
 #### 2. Sitemap Update

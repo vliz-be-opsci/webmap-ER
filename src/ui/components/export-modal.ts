@@ -16,7 +16,7 @@ export function createExportModal(store: AppStore, onClose: () => void): HTMLEle
   const headers = generateHttpHeaders(state.links);
   const sitemap = generateSitemapXml(state.seedUri, state.links);
   const yaml = generateRtTestYaml(state.seedUri, state.links);
-  const itTicket = generateSystemicItTicket(report, state.links);
+  const itTicket = generateSystemicItTicket(report, state.links, state.provenanceHistory);
 
   modal.innerHTML = `
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">

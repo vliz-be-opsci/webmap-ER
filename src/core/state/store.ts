@@ -40,6 +40,7 @@ export interface AppState {
     viewMode: 'balanced' | 'extended-triage' | 'extended-graph';
     activeQuestionIndex: number;
     showIntakeReview: boolean;
+    showMissingLinks: boolean;
   };
 }
 
@@ -59,7 +60,8 @@ export class AppStore {
       ui: {
         viewMode: 'balanced',
         activeQuestionIndex: 0,
-        showIntakeReview: false
+        showIntakeReview: false,
+        showMissingLinks: true
       },
       ...initialState
     };
@@ -130,12 +132,67 @@ export class AppStore {
     source: string = 'HUMAN',
     evidence?: string
   ): void {
-    this.answerQuestion(questionId, rel, targetUri);
+    const event: UserInteractionEvent = {
+      id: crypto.randomUUID(),
+      type: 'ANSWER_QUESTION',
+      timestamp: Date.now(),
+      payload: { questionId, rel, targetUri, source, evidence }
+    };
+    this.state.history.push(event);
+
+    const existingIdx = this.state.links.findIndex(l => l.rel === rel);
+    const newLink: DiscoveredLink = {
+      target: targetUri,
+      rel,
+      source: 'link-header'
+    };
+
+    if (existingIdx >= 0) {
+      this.state.links[existingIdx] = newLink;
+    } else {
+      this.state.links.push(newLink);
+    }
+
     const prov: RelationProvenance = {
       rel,
       targetUri,
       source,
       evidence,
+      timestamp: Date.now()
+    };
+    const provIdx = this.state.provenanceHistory.findIndex(p => p.rel === rel);
+    if (provIdx >= 0) {
+      this.state.provenanceHistory[provIdx] = prov;
+    } else {
+      this.state.provenanceHistory.push(prov);
+    }
+    this.notify();
+  }
+
+  public delegateToItTicket(
+    questionId: string,
+    rel: string,
+    evidence?: string
+  ): void {
+    const event: UserInteractionEvent = {
+      id: crypto.randomUUID(),
+      type: 'ANSWER_QUESTION',
+      timestamp: Date.now(),
+      payload: {
+        questionId,
+        rel,
+        targetUri: '(Delegated to IT Ticket)',
+        source: 'DELEGATED_IT_TICKET',
+        evidence: evidence || `Curator flagged rel="${rel}" as a systemic infrastructure requirement in IT ticket`
+      }
+    };
+    this.state.history.push(event);
+
+    const prov: RelationProvenance = {
+      rel,
+      targetUri: '(Delegated to IT Ticket)',
+      source: 'DELEGATED_IT_TICKET',
+      evidence: evidence || `Curator flagged rel="${rel}" as a systemic infrastructure requirement in IT ticket`,
       timestamp: Date.now()
     };
     const existingIdx = this.state.provenanceHistory.findIndex(p => p.rel === rel);
@@ -204,6 +261,11 @@ export class AppStore {
     this.notify();
   }
 
+  public setShowMissingLinks(show: boolean): void {
+    this.state.ui.showMissingLinks = show;
+    this.notify();
+  }
+
   public undo(): void {
     if (this.state.history.length === 0) return;
     this.state.history.pop();
@@ -214,8 +276,19 @@ export class AppStore {
     this.state.history = [];
 
     for (const e of remaining) {
-      if (e.type === 'SET_SEED_URI') this.setSeedUri(e.payload.uri);
-      else if (e.type === 'ANSWER_QUESTION') this.answerQuestion(e.payload.questionId, e.payload.rel, e.payload.targetUri);
+      if (e.type === 'SET_SEED_URI') {
+        this.setSeedUri(e.payload.uri);
+      } else if (e.type === 'ANSWER_QUESTION') {
+        if (e.payload.source === 'DELEGATED_IT_TICKET') {
+          this.delegateToItTicket(e.payload.questionId, e.payload.rel, e.payload.evidence);
+        } else if (e.payload.source) {
+          this.answerQuestionWithProvenance(e.payload.questionId, e.payload.rel, e.payload.targetUri, e.payload.source, e.payload.evidence);
+        } else {
+          this.answerQuestion(e.payload.questionId, e.payload.rel, e.payload.targetUri);
+        }
+      } else if (e.type === 'SET_ACTIVE_PATTERN') {
+        this.setActivePatternId(e.payload.patternId, e.payload.source);
+      }
     }
     this.notify();
   }

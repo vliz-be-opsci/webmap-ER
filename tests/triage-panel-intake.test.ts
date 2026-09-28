@@ -65,5 +65,31 @@ describe('triage-panel intake and provenance UI', () => {
     expect(panel.querySelector('.clinical-implementation-panel')).not.toBeNull();
     expect(panel.textContent).toContain('How to Implement:');
   });
+
+  it('delegates question to IT ticket when button clicked, updating provenance and removing from remaining questions', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    const panel = createTriagePanel(store);
+
+    const delegateBtn = panel.querySelector('#btn-delegate-ticket') as HTMLButtonElement;
+    expect(delegateBtn).not.toBeNull();
+
+    // Click delegate button
+    delegateBtn.click();
+
+    // Check store state: DELEGATED_IT_TICKET provenance record was created
+    const prov = store.getState().provenanceHistory;
+    const delegatedItem = prov.find(p => p.source === 'DELEGATED_IT_TICKET');
+    expect(delegatedItem).toBeDefined();
+    expect(delegatedItem?.rel).toBe('profile');
+    expect(delegatedItem?.targetUri).toBe('(Delegated to IT Ticket)');
+
+    // Open review matrix: should render with badge-ticket
+    store.toggleIntakeReview(true);
+    const updatedPanel = createTriagePanel(store);
+    const badgeTicket = updatedPanel.querySelector('.badge-ticket');
+    expect(badgeTicket).not.toBeNull();
+    expect(badgeTicket?.textContent).toBe('DELEGATED_IT_TICKET');
+  });
 });
 

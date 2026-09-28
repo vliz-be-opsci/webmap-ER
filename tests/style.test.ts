@@ -20,4 +20,12 @@ describe('CSS Token System & Anti-AI Auditing', () => {
   it('should enforce tabular numbers on metrics', () => {
     expect(css).toContain('tabular-nums');
   });
+
+  it('should ensure high readability for code and markdown in light mode', () => {
+    // In light mode, code blocks must use light surface (#f8fafc) and dark text (#0f172a), not dark-on-dark
+    expect(css).toContain('--surface-code: #f8fafc;');
+    expect(css).toContain('--text-code: #0f172a;');
+    expect(css).toContain('.code-block code');
+    expect(css).toContain('.badge-ticket');
+  });
 });

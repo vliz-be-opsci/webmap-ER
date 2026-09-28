@@ -84,8 +84,8 @@
   --surface-hover: #e2e8f0;
   --surface-active: #cbd5e1;
   --surface-dialog: #ffffff;
-  --surface-code: #0f172a;
-  --surface-code-card: #f8fafc;
+  --surface-code: #f8fafc;
+  --surface-code-card: #f1f5f9;
 
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
@@ -94,7 +94,7 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --text-code: #1e293b;
+  --text-code: #0f172a;
   --text-code-inverted: #f8fafc;
 
   /* Clinical Signal Tokens (WCAG AA Checked) */
@@ -1574,6 +1574,12 @@ body {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+.code-block code {
+  color: var(--text-code);
+  background: transparent;
+  font-family: inherit;
+}
+
 @keyframes modal-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -1729,5 +1735,24 @@ body {
 .req-tag {
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.provenance-badge.badge-ticket {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--clinical-cobalt);
+  border: 1px solid var(--clinical-cobalt);
+  font-weight: 700;
+}
+
+.ticket-delegation-action {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-subtle);
+  border: 1px dashed var(--clinical-cobalt-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
 

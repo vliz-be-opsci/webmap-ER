@@ -201,11 +201,13 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             ${patternRelations.length > 0 ? patternRelations.map(item => {
               const badgeClass = item.source === 'UNRESOLVED'
                 ? (item.isRequired ? 'badge-unresolved-critical' : 'badge-unresolved')
-                : item.source.startsWith('AUTO_ROBOTS') || item.source.startsWith('AUTO_SITEMAP') || item.source.startsWith('AUTO_LINK') || item.source.startsWith('AUTO_JSONLD')
-                  ? 'badge-auto'
-                  : item.source.startsWith('AUTO_HEURISTIC')
-                    ? 'badge-heuristic'
-                    : 'badge-human';
+                : item.source === 'DELEGATED_IT_TICKET'
+                  ? 'badge-ticket'
+                  : item.source.startsWith('AUTO_ROBOTS') || item.source.startsWith('AUTO_SITEMAP') || item.source.startsWith('AUTO_LINK') || item.source.startsWith('AUTO_JSONLD')
+                    ? 'badge-auto'
+                    : item.source.startsWith('AUTO_HEURISTIC')
+                      ? 'badge-heuristic'
+                      : 'badge-human';
               return `
                 <tr>
                   <td>
@@ -315,9 +317,15 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       // ACTIVE STATE: Seed URI provided -> Show Telemetry HUD, Pattern Strip, Standard Seed Input, and Questionnaire
       const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
       const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
-      const questions = generateTriageQuestions(report, activeFilter);
+      const allQuestions = generateTriageQuestions(report, activeFilter);
+      const delegatedRels = new Set(
+        state.provenanceHistory
+          .filter(p => p.source === 'DELEGATED_IT_TICKET')
+          .map(p => p.rel.toLowerCase())
+      );
+      const questions = allQuestions.filter(q => !delegatedRels.has(q.rel.toLowerCase()));
       const activeIdx = Math.min(state.ui.activeQuestionIndex, Math.max(0, questions.length - 1));
-      const currentQ = questions[activeIdx];
+      const currentQ = questions.length > 0 ? questions[activeIdx] : null;
 
       const activePatternEval = evaluatePatternScore(state.activePatternId, state.links, true);
 
@@ -614,6 +622,16 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               ` : ''}
             </div>
 
+            <div class="ticket-delegation-action">
+              <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3;">
+                <strong>Cannot resolve now?</strong> Delegate <code style="color: var(--clinical-cobalt); font-weight: 700;">rel="${escapeHtml(currentQ.rel)}"</code> as an infrastructure task in the IT ticket.
+              </div>
+              <button id="btn-delegate-ticket" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; white-space: nowrap; border-color: var(--clinical-cobalt); color: var(--clinical-cobalt);" title="Flag this requirement in the systemic IT ticket and move to next question">
+                <span>Add to IT Ticket &amp; Next</span>
+                ${iconChevronRight('', 14)}
+              </button>
+            </div>
+
             <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
               <button id="btn-prev-q" class="btn btn-secondary" ${activeIdx === 0 ? 'disabled' : ''}>
                 ${iconChevronLeft('', 14)}
@@ -749,7 +767,13 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         const stateNow = store.getState();
         const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
         const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
-        const qList = generateTriageQuestions(reportNow, filterNow);
+        const allQ = generateTriageQuestions(reportNow, filterNow);
+        const delegated = new Set(
+          stateNow.provenanceHistory
+            .filter(p => p.source === 'DELEGATED_IT_TICKET')
+            .map(p => p.rel.toLowerCase())
+        );
+        const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
         const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
         const q = qList[idx];
         if (uri && q) {
@@ -767,7 +791,13 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       const stateNow = store.getState();
       const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
       const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
-      const qList = generateTriageQuestions(reportNow, filterNow);
+      const allQ = generateTriageQuestions(reportNow, filterNow);
+      const delegated = new Set(
+        stateNow.provenanceHistory
+          .filter(p => p.source === 'DELEGATED_IT_TICKET')
+          .map(p => p.rel.toLowerCase())
+      );
+      const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
       const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
       const q = qList[idx];
       if (val && q) {
@@ -776,6 +806,33 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         if (idx < qList.length - 1) {
           store.setQuestionIndex(idx + 1);
         }
+      }
+    });
+
+    // Wire Delegate to IT Ticket Action
+    panel.querySelector('#btn-delegate-ticket')?.addEventListener('click', () => {
+      const stateNow = store.getState();
+      const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
+      const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
+      const allQ = generateTriageQuestions(reportNow, filterNow);
+      const delegated = new Set(
+        stateNow.provenanceHistory
+          .filter(p => p.source === 'DELEGATED_IT_TICKET')
+          .map(p => p.rel.toLowerCase())
+      );
+      const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
+      const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
+      const q = qList[idx];
+      if (q) {
+        store.delegateToItTicket(
+          q.id,
+          q.rel,
+          `Curator flagged rel="${q.rel}" as a systemic infrastructure requirement in IT ticket`
+        );
+        showToast('Delegated to IT Ticket', `Added rel="${q.rel}" as requirement in export IT ticket.`, 'info');
+        const nextCount = qList.length - 1;
+        const nextIdx = Math.min(idx, Math.max(0, nextCount - 1));
+        store.setQuestionIndex(nextIdx);
       }
     });
 

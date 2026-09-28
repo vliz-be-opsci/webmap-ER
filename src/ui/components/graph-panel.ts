@@ -10,11 +10,11 @@ export function createGraphPanel(store: AppStore): HTMLElement {
   const panel = document.createElement('div');
   panel.className = 'graph-panel';
 
-  let showMissingLinks = false;
   let currentSvg: SVGSVGElement | null = null;
 
   function render() {
     const state = store.getState();
+    const showMissingLinks = state.ui.showMissingLinks !== false;
     const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
 
     panel.innerHTML = `
@@ -66,11 +66,11 @@ export function createGraphPanel(store: AppStore): HTMLElement {
 
     // Wire Toolbar Controls
     panel.querySelector('#btn-toggle-ghost-links')?.addEventListener('click', () => {
-      showMissingLinks = !showMissingLinks;
-      render();
+      const next = !showMissingLinks;
+      store.setShowMissingLinks(next);
       showToast(
         'Topology Projections',
-        showMissingLinks ? 'Projecting missing pattern relations as ghost nodes.' : 'Showing discovered relations only.',
+        next ? 'Projecting missing pattern relations as ghost nodes.' : 'Showing discovered relations only.',
         'info'
       );
     });
