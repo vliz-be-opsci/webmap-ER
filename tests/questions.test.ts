@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateTriageQuestions } from '../src/core/triage/questions';
+import { generateTriageQuestions, buildQuestionForRelation } from '../src/core/triage/questions';
 import { evaluateHealthAndGaps } from '../src/core/triage/diagnostics';
 import { SmartInferenceResult } from '../src/core/wrx/smart-detector';
 
@@ -86,5 +86,39 @@ describe('Multi-Pattern Questionnaire Generator', () => {
     const pt01Questions = generateTriageQuestions(report, 'PT-01');
     expect(pt01Questions[0].implementationGuidance).toBeDefined();
     expect(pt01Questions[0].implementationGuidance?.length).toBeGreaterThan(20);
+  });
+
+  it('should generate questions for recommended gaps such as cite-as and type for PT-04', () => {
+    const report = evaluateHealthAndGaps('https://example.org/dataset', []);
+    const pt04Questions = generateTriageQuestions(report, 'PT-04');
+
+    const describedbyQ = pt04Questions.find(q => q.rel === 'describedby');
+    const citeQ = pt04Questions.find(q => q.rel === 'cite-as');
+    const typeQ = pt04Questions.find(q => q.rel === 'type');
+
+    expect(describedbyQ).toBeDefined();
+    expect(describedbyQ?.severity).toBe('CRITICAL');
+
+    expect(citeQ).toBeDefined();
+    expect(citeQ?.severity).toBe('WARNING');
+
+    expect(typeQ).toBeDefined();
+    expect(typeQ?.severity).toBe('RECOMMENDED');
+    expect(typeQ?.quickOptions.some(opt => opt.uri.includes('schema.org/Dataset'))).toBe(true);
+  });
+
+  it('should support buildQuestionForRelation for on-demand relation inspection with prefilled currentValue', () => {
+    const report = evaluateHealthAndGaps('https://example.org/dataset', []);
+    const q = buildQuestionForRelation(
+      'profile',
+      'PT-01',
+      report,
+      'CRITICAL',
+      'https://w3id.org/ro/crate/1.1'
+    );
+
+    expect(q.rel).toBe('profile');
+    expect(q.currentValue).toBe('https://w3id.org/ro/crate/1.1');
+    expect(q.quickOptions.length).toBeGreaterThan(0);
   });
 });

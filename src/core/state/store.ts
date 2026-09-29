@@ -41,6 +41,7 @@ export interface AppState {
     activeQuestionIndex: number;
     showIntakeReview: boolean;
     showMissingLinks: boolean;
+    selectedNodeId: string | null;
   };
 }
 
@@ -61,7 +62,8 @@ export class AppStore {
         viewMode: 'balanced',
         activeQuestionIndex: 0,
         showIntakeReview: false,
-        showMissingLinks: true
+        showMissingLinks: true,
+        selectedNodeId: null
       },
       ...initialState
     };
@@ -97,6 +99,26 @@ export class AppStore {
 
   public setLinks(links: DiscoveredLink[]): void {
     this.state.links = links;
+    this.notify();
+  }
+
+  public removeLink(targetOrRel: string): void {
+    const event: UserInteractionEvent = {
+      id: crypto.randomUUID(),
+      type: 'REMOVE_LINK',
+      timestamp: Date.now(),
+      payload: { targetOrRel }
+    };
+    this.state.history.push(event);
+    this.state.links = this.state.links.filter(
+      l => l.target !== targetOrRel && l.rel.toLowerCase() !== targetOrRel.toLowerCase()
+    );
+    this.state.provenanceHistory = this.state.provenanceHistory.filter(
+      p => p.targetUri !== targetOrRel && p.rel.toLowerCase() !== targetOrRel.toLowerCase()
+    );
+    if (this.state.ui.selectedNodeId === targetOrRel) {
+      this.state.ui.selectedNodeId = null;
+    }
     this.notify();
   }
 
@@ -266,6 +288,11 @@ export class AppStore {
     this.notify();
   }
 
+  public setSelectedNode(nodeId: string | null): void {
+    this.state.ui.selectedNodeId = nodeId;
+    this.notify();
+  }
+
   public undo(): void {
     if (this.state.history.length === 0) return;
     this.state.history.pop();
@@ -288,6 +315,8 @@ export class AppStore {
         }
       } else if (e.type === 'SET_ACTIVE_PATTERN') {
         this.setActivePatternId(e.payload.patternId, e.payload.source);
+      } else if (e.type === 'REMOVE_LINK') {
+        this.removeLink(e.payload.targetOrRel);
       }
     }
     this.notify();
@@ -317,6 +346,7 @@ export class AppStore {
     this.state.intakeSummary = undefined;
     this.state.ui.activeQuestionIndex = 0;
     this.state.ui.showIntakeReview = false;
+    this.state.ui.selectedNodeId = null;
     this.notify();
   }
 }

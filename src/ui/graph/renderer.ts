@@ -203,7 +203,8 @@ function formatLabel(uri: string): string {
 export function renderSvgGraph(
   container: HTMLElement,
   model: GraphModel,
-  onNodeClick?: (id: string) => void
+  onNodeClick?: (id: string) => void,
+  selectedNodeId?: string | null
 ): SVGSVGElement {
   container.innerHTML = '';
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -332,10 +333,27 @@ export function renderSvgGraph(
   model.nodes.forEach(node => {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.style.cursor = 'pointer';
+    g.setAttribute('data-node-id', node.id);
     g.onclick = () => onNodeClick?.(node.id);
 
     const isResource = node.type === 'resource';
     const isGhost = !!node.isGhost;
+    const isSelected = !!selectedNodeId && (node.id === selectedNodeId || (isGhost && selectedNodeId === `ghost-${node.rel}`));
+
+    g.setAttribute('class', `graph-node ${isSelected ? 'selected' : ''}`);
+
+    if (isSelected) {
+      const selectedHalo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      selectedHalo.setAttribute('cx', node.x.toString());
+      selectedHalo.setAttribute('cy', node.y.toString());
+      selectedHalo.setAttribute('r', isResource ? '32' : '22');
+      selectedHalo.setAttribute('fill', 'none');
+      selectedHalo.setAttribute('stroke', isGhost ? 'var(--clinical-amber)' : 'var(--clinical-cobalt)');
+      selectedHalo.setAttribute('stroke-width', '2.5');
+      selectedHalo.setAttribute('stroke-dasharray', '4 2');
+      selectedHalo.setAttribute('class', 'node-selected-halo');
+      g.appendChild(selectedHalo);
+    }
 
     if (isResource) {
       // Outer subtle ring for focal lead

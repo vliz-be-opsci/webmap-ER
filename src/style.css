@@ -1756,3 +1756,74 @@ body {
   gap: 0.75rem;
 }
 
+/* ==========================================================================
+   Node Inspector Card & Graph Selection Styles
+   ========================================================================== */
+.node-inspector-card {
+  background: var(--surface-panel);
+  border: 1px solid var(--clinical-cobalt);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md), 0 0 16px rgba(37, 99, 235, 0.15);
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+.highlight-focused-node {
+  border-color: var(--clinical-cobalt) !important;
+  box-shadow: 0 0 0 2px var(--clinical-cobalt), 0 0 16px rgba(37, 99, 235, 0.25) !important;
+  animation: nodeFocusPulse 1.5s ease-in-out;
+}
+
+@keyframes nodeFocusPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.3), 0 0 20px rgba(37, 99, 235, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 2px var(--clinical-cobalt), 0 0 16px rgba(37, 99, 235, 0.25);
+  }
+}
+
+.node-selected-halo {
+  animation: rotateSelectedHalo 6s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes rotateSelectedHalo {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 24;
+  }
+}
+
+.btn-goto-rel {
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-goto-rel:hover .rel-link-title {
+  color: var(--clinical-cobalt-hover) !important;
+  text-decoration: underline;
+}
+
+.provenance-row-interactive {
+  transition: background-color var(--transition-fast);
+}
+
+.provenance-row-interactive:hover {
+  background-color: var(--surface-hover);
+}
+
+.hud-rel-chip.clickable {
+  cursor: pointer;
+}
+
+.hud-rel-chip.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+

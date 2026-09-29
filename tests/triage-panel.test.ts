@@ -82,4 +82,58 @@ describe('Triage Panel Telemetry HUD & Questionnaire', () => {
     expect(panel.textContent).toContain('profile');
     expect(panel.textContent).toContain('REQUIRED');
   });
+
+  it('should render the Node Inspector card when a discovered link node is selected and allow closing it', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    store.answerQuestionWithProvenance('q1', 'profile', 'https://w3id.org/ro/crate/1.1', 'HUMAN', 'RO-Crate spec');
+    const panel = createTriagePanel(store);
+
+    // Initially questionnaire is shown
+    expect(panel.querySelector('.node-inspector-card')).toBeNull();
+
+    // Select the node
+    store.setSelectedNode('https://w3id.org/ro/crate/1.1');
+    expect(panel.querySelector('.node-inspector-card')).not.toBeNull();
+    expect(panel.textContent).toContain('Inspected Node: rel="profile"');
+    expect(panel.textContent).toContain('https://w3id.org/ro/crate/1.1');
+
+    // Click Back to Questionnaire
+    const backBtn = panel.querySelector('#btn-inspector-close') as HTMLElement;
+    expect(backBtn).not.toBeNull();
+    backBtn.click();
+
+    expect(store.getState().ui.selectedNodeId).toBeNull();
+    expect(panel.querySelector('.node-inspector-card')).toBeNull();
+  });
+
+  it('should allow skipping questions in the questionnaire queue without error', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    const panel = createTriagePanel(store);
+
+    const initialIdx = store.getState().ui.activeQuestionIndex;
+    const skipBtn = panel.querySelector('#btn-skip-q') as HTMLElement;
+    expect(skipBtn).not.toBeNull();
+
+    skipBtn.click();
+    expect(store.getState().ui.activeQuestionIndex).toBe(initialIdx + 1);
+  });
+
+  it('should navigate to question when clicking relation button in Provenance Review Matrix', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    store.setActivePatternId('PT-04');
+    store.toggleIntakeReview(true);
+    const panel = createTriagePanel(store);
+
+    expect(panel.querySelector('.provenance-review-matrix')).not.toBeNull();
+    const relBtn = panel.querySelector('.btn-goto-rel[data-rel="describedby"]') as HTMLElement;
+    expect(relBtn).not.toBeNull();
+
+    relBtn.click();
+    // Should close matrix and focus relation
+    expect(store.getState().ui.showIntakeReview).toBe(false);
+    expect(store.getState().ui.selectedNodeId).toContain('describedby');
+  });
 });

@@ -130,7 +130,8 @@ export function snapshotToState(snapshot: SessionSnapshot): Partial<AppState> {
       viewMode: snapshot.ui?.m || 'balanced',
       activeQuestionIndex: snapshot.ui?.q || 0,
       showIntakeReview: !!snapshot.ui?.r,
-      showMissingLinks: snapshot.ui?.x !== false
+      showMissingLinks: snapshot.ui?.x !== false,
+      selectedNodeId: null
     }
   };
 }

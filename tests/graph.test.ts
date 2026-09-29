@@ -30,4 +30,17 @@ describe('Graph Visualizer Model', () => {
     const updatedBtn = panel.querySelector('#btn-toggle-ghost-links');
     expect(updatedBtn?.textContent).toContain('Show Missing');
   });
+
+  it('should select a graph node on click and render Node Inspector in the triage panel', () => {
+    const store = new AppStore();
+    store.setSeedUri('https://example.org/dataset');
+    store.answerQuestionWithProvenance('q1', 'profile', 'https://w3id.org/ro/crate/1.1', 'HUMAN', 'Research Object Crate');
+
+    const graphPanel = createGraphPanel(store);
+    const nodeEl = graphPanel.querySelector('[data-node-id="https://w3id.org/ro/crate/1.1"]') as HTMLElement;
+    expect(nodeEl).not.toBeNull();
+
+    nodeEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(store.getState().ui.selectedNodeId).toBe('https://w3id.org/ro/crate/1.1');
+  });
 });

@@ -1,6 +1,6 @@
 import { AppStore } from '../../core/state/store';
 import { evaluateHealthAndGaps, evaluatePatternScore } from '../../core/triage/diagnostics';
-import { generateTriageQuestions } from '../../core/triage/questions';
+import { generateTriageQuestions, buildQuestionForRelation } from '../../core/triage/questions';
 import { extractResourceLinks } from '../../core/wrx/extractor';
 import { detectSmartMetadata } from '../../core/wrx/smart-detector';
 import { probeHostwideResource } from '../../core/wrx/host-prober';
@@ -210,9 +210,11 @@ export function createTriagePanel(store: AppStore): HTMLElement {
                       ? 'badge-heuristic'
                       : 'badge-human';
               return `
-                <tr>
+                <tr class="provenance-row-interactive" data-rel="${escapeHtml(item.rel)}">
                   <td>
-                    <strong>${escapeHtml(item.rel)}</strong>
+                    <button class="btn-goto-rel" data-rel="${escapeHtml(item.rel)}" style="background: none; border: none; padding: 0; cursor: pointer; text-align: left; display: inline-flex; align-items: center; gap: 4px;" title="Go to question for rel=&quot;${escapeHtml(item.rel)}&quot;">
+                      <strong class="rel-link-title" style="color: var(--clinical-cobalt); text-decoration: underline;">${escapeHtml(item.rel)}</strong>
+                    </button>
                     ${item.isRequired ? '<span class="req-tag" style="font-size: 0.65rem; color: var(--clinical-crimson); margin-left: 4px;">REQUIRED</span>' : '<span class="req-tag" style="font-size: 0.65rem; color: var(--text-secondary); margin-left: 4px;">RECOMMENDED</span>'}
                   </td>
                   <td><code>${escapeHtml(item.targetUri)}</code></td>
@@ -390,7 +392,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               <span class="hud-sub-label">DETECTED RELATIONS (${report.presentRelations.length})</span>
               <div class="hud-chips-wrap">
                 ${report.presentRelations.length > 0 ? report.presentRelations.map(rel => `
-                  <span class="hud-rel-chip satisfied" title="Detected relation rel=&quot;${escapeHtml(rel)}&quot;">
+                  <span class="hud-rel-chip satisfied clickable" data-rel="${escapeHtml(rel)}" title="Detected relation rel=&quot;${escapeHtml(rel)}&quot; (click to inspect)">
                     <span class="chip-icon">✓</span>
                     <code>${escapeHtml(rel)}</code>
                   </span>
@@ -405,28 +407,28 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               <span class="hud-sub-label">ACTIVE PATTERN (${activePatternDef.id}) CONFORMANCE GAPS</span>
               <div class="hud-chips-wrap">
                 ${activePatternEval.missingRequired.map(rel => `
-                  <span class="hud-rel-chip missing-req" title="Missing REQUIRED relation for ${activePatternDef.id}">
+                  <span class="hud-rel-chip missing-req clickable" data-rel="${escapeHtml(rel)}" title="Missing REQUIRED relation for ${activePatternDef.id} (click to prescribe)">
                     <span class="chip-icon">!</span>
                     <code>${escapeHtml(rel)}</code>
                     <span class="chip-tag tag-req">REQUIRED</span>
                   </span>
                 `).join('')}
                 ${activePatternEval.missingRecommended.map(rel => `
-                  <span class="hud-rel-chip missing-rec" title="Missing RECOMMENDED relation for ${activePatternDef.id}">
+                  <span class="hud-rel-chip missing-rec clickable" data-rel="${escapeHtml(rel)}" title="Missing RECOMMENDED relation for ${activePatternDef.id} (click to prescribe)">
                     <span class="chip-icon">?</span>
                     <code>${escapeHtml(rel)}</code>
                     <span class="chip-tag tag-rec">RECOMMENDED</span>
                   </span>
                 `).join('')}
                 ${activePatternEval.satisfiedRequired.map(rel => `
-                  <span class="hud-rel-chip satisfied" title="Satisfied REQUIRED relation for ${activePatternDef.id}">
+                  <span class="hud-rel-chip satisfied clickable" data-rel="${escapeHtml(rel)}" title="Satisfied REQUIRED relation for ${activePatternDef.id} (click to inspect)">
                     <span class="chip-icon">✓</span>
                     <code>${escapeHtml(rel)}</code>
                     <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REQ</span>
                   </span>
                 `).join('')}
                 ${activePatternEval.satisfiedRecommended.map(rel => `
-                  <span class="hud-rel-chip satisfied" title="Satisfied RECOMMENDED relation for ${activePatternDef.id}">
+                  <span class="hud-rel-chip satisfied clickable" data-rel="${escapeHtml(rel)}" title="Satisfied RECOMMENDED relation for ${activePatternDef.id} (click to inspect)">
                     <span class="chip-icon">✓</span>
                     <code>${escapeHtml(rel)}</code>
                     <span class="chip-tag" style="background: rgba(5,150,105,0.15); color: var(--clinical-emerald);">REC</span>
@@ -444,7 +446,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
                 <span class="hud-sub-label">CROSS-PATTERN GAPS</span>
                 <div class="hud-chips-wrap">
                   ${report.gaps.filter(g => g.patternId !== activePatternDef.id).map(gap => `
-                    <span class="hud-rel-chip ${gap.severity === 'CRITICAL' ? 'missing-req' : 'missing-rec'}" title="${escapeHtml(gap.message)}">
+                    <span class="hud-rel-chip ${gap.severity === 'CRITICAL' ? 'missing-req' : 'missing-rec'} clickable" data-rel="${escapeHtml(gap.rel)}" title="${escapeHtml(gap.message)} (click to jump)">
                       <span class="chip-icon">${gap.severity === 'CRITICAL' ? '!' : '?'}</span>
                       <code>${escapeHtml(gap.rel)}</code>
                       <span class="chip-pattern-tag">[${gap.patternId}]</span>
@@ -564,106 +566,248 @@ export function createTriagePanel(store: AppStore): HTMLElement {
           </div>
         ` : ''}
 
-        <!-- Active Questionnaire or Healthy State -->
-        ${currentQ ? `
-          <div class="question-card severity-${currentQ.severity.toLowerCase()}">
-            <div class="card-header-meta">
-              <span class="card-step-badge">QUESTION ${activeIdx + 1} OF ${questions.length}</span>
-              <span class="hud-condition-badge status-${currentQ.severity.toLowerCase()}">
-                ${currentQ.severity} GAP
-              </span>
-            </div>
-            <h3 class="card-title">${escapeHtml(currentQ.title)}</h3>
-            <p class="card-prompt">${escapeHtml(currentQ.prompt)}</p>
-            
-            <div class="clinical-guidance-panel">
-              <div class="guidance-icon">${iconInfo('', 18)}</div>
-              <div class="guidance-body">
-                <strong>Why This Matters:</strong> ${escapeHtml(currentQ.didacticText)}
-              </div>
-            </div>
+        <!-- Active Questionnaire, Node Inspector, or Healthy State -->
+        ${(() => {
+          const selectedNodeId = state.ui.selectedNodeId;
+          const inspectedLink = selectedNodeId ? state.links.find(l => l.target === selectedNodeId) : null;
+          const isInspectingSeed = selectedNodeId ? (selectedNodeId === state.seedUri || selectedNodeId === 'https://example.org/resource') : false;
+          const ghostRelMatch = selectedNodeId && selectedNodeId.startsWith('ghost-') ? selectedNodeId.replace('ghost-', '') : null;
 
-            ${currentQ.implementationGuidance ? `
-              <div class="clinical-guidance-panel clinical-implementation-panel" style="margin-top: 0.75rem; border-left-color: var(--clinical-emerald);">
-                <div class="guidance-icon" style="color: var(--clinical-emerald);">${iconSparkles('', 18)}</div>
-                <div class="guidance-body">
-                  <strong>How to Implement:</strong> ${escapeHtml(currentQ.implementationGuidance)}
+          if (isInspectingSeed) {
+            return `
+              <div class="card node-inspector-card" aria-label="Seed Resource Inspector">
+                <div class="card-header-meta">
+                  <span class="card-step-badge">GRAPH NODE INSPECTOR</span>
+                  <span class="hud-condition-badge status-${report.vitalStatus.toLowerCase()}">${report.vitalStatus} SEED</span>
+                </div>
+                <h3 class="card-title">Root Target Seed Resource</h3>
+                <p class="card-prompt" style="word-break: break-all;">
+                  Target URI: <a href="${escapeHtml(state.seedUri)}" target="_blank" rel="noopener noreferrer" style="color: var(--clinical-cobalt); text-decoration: underline;"><code>${escapeHtml(state.seedUri)}</code></a>
+                </p>
+
+                <div class="clinical-guidance-panel" style="margin-top: 0.75rem;">
+                  <div class="guidance-icon">${iconInfo('', 18)}</div>
+                  <div class="guidance-body">
+                    <div><strong>Global Vital Signs Score:</strong> ${report.score}% (${report.vitalStatus})</div>
+                    <div style="margin-top: 4px;"><strong>Active Conformance Pattern:</strong> ${escapeHtml(state.activePatternId)} (${escapeHtml(activePatternDef.name)})</div>
+                    <div style="margin-top: 4px;"><strong>Connected Relations:</strong> ${state.links.length} graph nodes</div>
+                  </div>
+                </div>
+
+                <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
+                  <button id="btn-inspector-close" class="btn btn-secondary">
+                    ${iconChevronLeft('', 14)}
+                    <span>Back to Questionnaire</span>
+                  </button>
+                  <button id="btn-reextract-seed" class="btn btn-primary">
+                    <span>Re-diagnose (wrx)</span>
+                  </button>
                 </div>
               </div>
-            ` : ''}
+            `;
+          }
 
-            ${currentQ.quickOptions.length > 0 ? `
-              <div class="prescription-options">
-                <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
-                ${currentQ.quickOptions.map(opt => `
-                  <button class="btn-prescription-opt" data-uri="${escapeHtml(opt.uri)}">
-                    <span class="prescription-opt-title">${escapeHtml(opt.label)}</span>
-                    <span class="prescription-opt-uri">${escapeHtml(opt.uri)}</span>
-                    ${opt.description ? `<span class="prescription-opt-desc">${escapeHtml(opt.description)}</span>` : ''}
+          if (inspectedLink) {
+            const linkProv = state.provenanceHistory.find(p => p.rel.toLowerCase() === inspectedLink.rel.toLowerCase());
+            return `
+              <div class="card node-inspector-card" aria-label="Relation Node Inspector">
+                <div class="card-header-meta">
+                  <span class="card-step-badge">GRAPH NODE INSPECTOR</span>
+                  <span class="hud-condition-badge status-healthy">rel="${escapeHtml(inspectedLink.rel)}"</span>
+                </div>
+                <h3 class="card-title">Inspected Node: rel="${escapeHtml(inspectedLink.rel)}"</h3>
+                <p class="card-prompt" style="word-break: break-all;">
+                  Target URI: <a href="${escapeHtml(inspectedLink.target)}" target="_blank" rel="noopener noreferrer" style="color: var(--clinical-cobalt); text-decoration: underline;"><code>${escapeHtml(inspectedLink.target)}</code></a>
+                </p>
+
+                <div class="clinical-guidance-panel" style="margin-top: 0.75rem;">
+                  <div class="guidance-icon">${iconInfo('', 18)}</div>
+                  <div class="guidance-body">
+                    <div><strong>Provenance Source:</strong> <span class="provenance-badge badge-auto">${escapeHtml(linkProv?.source || inspectedLink.source)}</span></div>
+                    ${linkProv?.evidence ? `<div style="margin-top: 4px; font-size: 0.8rem; color: var(--text-secondary);"><strong>Evidence:</strong> ${escapeHtml(linkProv.evidence)}</div>` : ''}
+                    <div style="margin-top: 4px; font-size: 0.8rem; color: var(--text-secondary);"><strong>Pattern Role:</strong> Conforms to ${escapeHtml(state.activePatternId)} specification</div>
+                  </div>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                  <label for="inspector-uri-input" class="hud-label">UPDATE TARGET URI FOR rel="${escapeHtml(inspectedLink.rel)}"</label>
+                  <div class="terminal-input-group">
+                    <input type="text" id="inspector-uri-input" class="form-control-bare" value="${escapeHtml(inspectedLink.target)}" aria-label="Update Target URI" />
+                    <button id="btn-inspector-save" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
+                      Update
+                    </button>
+                  </div>
+                </div>
+
+                <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
+                  <button id="btn-inspector-close" class="btn btn-secondary">
+                    ${iconChevronLeft('', 14)}
+                    <span>Back to Questionnaire</span>
                   </button>
-                `).join('')}
+                  <button id="btn-inspector-remove" class="btn btn-secondary" style="color: var(--clinical-crimson); border-color: rgba(239, 68, 68, 0.4);" title="Remove this relation link">
+                    <span>Remove Link</span>
+                  </button>
+                </div>
               </div>
-            ` : ''}
+            `;
+          }
 
-            <div class="terminal-input-group" style="margin-top: 1rem;">
-              <input 
-                type="text" 
-                id="custom-uri-input" 
-                class="form-control-bare" 
-                placeholder="${escapeHtml(currentQ.inputPlaceholder)}" 
-                aria-label="Custom target URI"
-              />
-              <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
-                Prescribe
-              </button>
-              ${currentQ.id === 'q-proactive-missing-ld' ? `
-                <button id="btn-crawl-metadata" class="btn btn-secondary" style="border-radius: 0; padding: 0.5rem 0.85rem;">
-                  ${iconSearch('', 14)} Crawl Metadata
+          // Questionnaire view (with potential ghost node focus)
+          let qToRender: ReturnType<typeof buildQuestionForRelation> | null = currentQ;
+          let isNodeFocused = false;
+
+          if (ghostRelMatch) {
+            const matchedInQueue = questions.find(q => q.rel.toLowerCase() === ghostRelMatch.toLowerCase());
+            if (matchedInQueue) {
+              qToRender = matchedInQueue;
+              isNodeFocused = true;
+            } else {
+              const existingProv = state.provenanceHistory.find(p => p.rel.toLowerCase() === ghostRelMatch.toLowerCase());
+              qToRender = buildQuestionForRelation(
+                ghostRelMatch,
+                state.activePatternId,
+                report,
+                undefined,
+                existingProv?.targetUri
+              );
+              isNodeFocused = true;
+            }
+          }
+
+          if (qToRender) {
+            return `
+              <div class="question-card severity-${qToRender.severity.toLowerCase()} ${isNodeFocused ? 'highlight-focused-node' : ''}" data-question-id="${escapeHtml(qToRender.id)}" data-question-rel="${escapeHtml(qToRender.rel)}">
+                <div class="card-header-meta">
+                  <span class="card-step-badge">
+                    ${isNodeFocused ? `FOCUSED GAP: rel="${escapeHtml(qToRender.rel)}"` : `QUESTION ${activeIdx + 1} OF ${questions.length}`}
+                  </span>
+                  <span class="hud-condition-badge status-${qToRender.severity.toLowerCase()}">
+                    ${qToRender.severity} GAP
+                  </span>
+                </div>
+                <h3 class="card-title">${escapeHtml(qToRender.title)}</h3>
+                <p class="card-prompt">${escapeHtml(qToRender.prompt)}</p>
+                
+                <div class="clinical-guidance-panel">
+                  <div class="guidance-icon">${iconInfo('', 18)}</div>
+                  <div class="guidance-body">
+                    <strong>Why This Matters:</strong> ${escapeHtml(qToRender.didacticText)}
+                  </div>
+                </div>
+
+                ${qToRender.implementationGuidance ? `
+                  <div class="clinical-guidance-panel clinical-implementation-panel" style="margin-top: 0.75rem; border-left-color: var(--clinical-emerald);">
+                    <div class="guidance-icon" style="color: var(--clinical-emerald);">${iconSparkles('', 18)}</div>
+                    <div class="guidance-body">
+                      <strong>How to Implement:</strong> ${escapeHtml(qToRender.implementationGuidance)}
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${qToRender.quickOptions.length > 0 ? `
+                  <div class="prescription-options">
+                    <span class="hud-label">RECOMMENDED PRESCRIPTIONS</span>
+                    ${qToRender.quickOptions.map(opt => `
+                      <button class="btn-prescription-opt" data-uri="${escapeHtml(opt.uri)}" data-rel="${escapeHtml(qToRender!.rel)}">
+                        <span class="prescription-opt-title">${escapeHtml(opt.label)}</span>
+                        <span class="prescription-opt-uri">${escapeHtml(opt.uri)}</span>
+                        ${opt.description ? `<span class="prescription-opt-desc">${escapeHtml(opt.description)}</span>` : ''}
+                      </button>
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                <div class="terminal-input-group" style="margin-top: 1rem;">
+                  <input 
+                    type="text" 
+                    id="custom-uri-input" 
+                    class="form-control-bare" 
+                    placeholder="${escapeHtml(qToRender.inputPlaceholder)}" 
+                    value="${escapeHtml(qToRender.currentValue || '')}"
+                    aria-label="Custom target URI"
+                  />
+                  <button id="btn-save-answer" class="btn btn-primary" style="border-radius: 0; padding: 0.5rem 1rem;">
+                    Prescribe
+                  </button>
+                  ${qToRender.id === 'q-proactive-missing-ld' ? `
+                    <button id="btn-crawl-metadata" class="btn btn-secondary" style="border-radius: 0; padding: 0.5rem 0.85rem;">
+                      ${iconSearch('', 14)} Crawl Metadata
+                    </button>
+                  ` : ''}
+                </div>
+
+                <div class="ticket-delegation-action">
+                  <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3;">
+                    <strong>Cannot resolve now?</strong> Delegate <code style="color: var(--clinical-cobalt); font-weight: 700;">rel="${escapeHtml(qToRender.rel)}"</code> as an infrastructure task in the IT ticket.
+                  </div>
+                  <button id="btn-delegate-ticket" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; white-space: nowrap; border-color: var(--clinical-cobalt); color: var(--clinical-cobalt);" title="Flag this requirement in the systemic IT ticket and move to next question">
+                    <span>Add to IT Ticket &amp; Next</span>
+                    ${iconChevronRight('', 14)}
+                  </button>
+                </div>
+
+                <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
+                  <button id="btn-prev-q" class="btn btn-secondary" ${activeIdx === 0 && !isNodeFocused ? 'disabled' : ''}>
+                    ${iconChevronLeft('', 14)}
+                    <span>Previous</span>
+                  </button>
+                  <button id="btn-skip-q" class="btn btn-secondary" title="Skip this question without penalty">
+                    <span>Skip</span>
+                  </button>
+                  <button id="btn-undo" class="btn btn-secondary" ${state.history.length === 0 ? 'disabled' : ''}>
+                    ${iconRotateCcw('', 14)}
+                    <span>Undo</span>
+                  </button>
+                  ${isNodeFocused ? `
+                    <button id="btn-inspector-close" class="btn btn-secondary">
+                      <span>Back to Questionnaire</span>
+                    </button>
+                  ` : `
+                    <button id="btn-next-q" class="btn btn-secondary" ${activeIdx >= questions.length - 1 ? 'disabled' : ''}>
+                      <span>Next</span>
+                      ${iconChevronRight('', 14)}
+                    </button>
+                  `}
+                </div>
+              </div>
+            `;
+          }
+
+          // No current question in active queue
+          if (activePatternEval.missingRequired.length > 0 || activePatternEval.missingRecommended.length > 0) {
+            return `
+              <div class="healthy-state-card" style="text-align: center; padding: 2.5rem 1.5rem;">
+                <div style="color: var(--clinical-amber); margin-bottom: 0.75rem;">
+                  ${iconInfo('', 44)}
+                </div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                  Triage Questionnaire Completed (Gaps Remain)
+                </h3>
+                <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+                  You have stepped through the current question queue. Unresolved relations for ${escapeHtml(activePatternDef.name)} are displayed in the review matrix above or can be clicked directly on the graph topology to prescribe.
+                </p>
+                <button id="btn-restart-queue" class="btn btn-secondary">
+                  ${iconRotateCcw('', 14)}
+                  <span>Review From Question 1</span>
                 </button>
-              ` : ''}
-            </div>
-
-            <div class="ticket-delegation-action">
-              <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3;">
-                <strong>Cannot resolve now?</strong> Delegate <code style="color: var(--clinical-cobalt); font-weight: 700;">rel="${escapeHtml(currentQ.rel)}"</code> as an infrastructure task in the IT ticket.
               </div>
-              <button id="btn-delegate-ticket" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem; white-space: nowrap; border-color: var(--clinical-cobalt); color: var(--clinical-cobalt);" title="Flag this requirement in the systemic IT ticket and move to next question">
-                <span>Add to IT Ticket &amp; Next</span>
-                ${iconChevronRight('', 14)}
-              </button>
-            </div>
+            `;
+          }
 
-            <div class="card-nav" style="display: flex; justify-content: space-between; margin-top: 1.25rem;">
-              <button id="btn-prev-q" class="btn btn-secondary" ${activeIdx === 0 ? 'disabled' : ''}>
-                ${iconChevronLeft('', 14)}
-                <span>Previous</span>
-              </button>
-              <button id="btn-skip-q" class="btn btn-secondary" title="Skip this question">
-                <span>Skip</span>
-              </button>
-              <button id="btn-undo" class="btn btn-secondary" ${state.history.length === 0 ? 'disabled' : ''}>
-                ${iconRotateCcw('', 14)}
-                <span>Undo</span>
-              </button>
-              <button id="btn-next-q" class="btn btn-secondary" ${activeIdx >= questions.length - 1 ? 'disabled' : ''}>
-                <span>Next</span>
-                ${iconChevronRight('', 14)}
-              </button>
+          return `
+            <div class="healthy-state-card" style="text-align: center; padding: 2.5rem 1.5rem;">
+              <div style="color: var(--clinical-emerald); margin-bottom: 0.75rem;">
+                ${iconShieldCheck('', 44)}
+              </div>
+              <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                All Vital Relations Prescribed!
+              </h3>
+              <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
+                Your digital asset conforms to Radical Transparency specifications for ${escapeHtml(activePatternDef.name)}. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
+              </p>
             </div>
-          </div>
-        ` : `
-          <div class="healthy-state-card" style="text-align: center; padding: 2.5rem 1.5rem;">
-            <div style="color: var(--clinical-emerald); margin-bottom: 0.75rem;">
-              ${iconShieldCheck('', 44)}
-            </div>
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
-              All Vital Relations Prescribed!
-            </h3>
-            <p style="color: var(--text-secondary); font-size: 0.875rem; max-width: 440px; margin: 0 auto 1.5rem auto; line-height: 1.5;">
-              Your digital asset conforms to Radical Transparency specifications for ${escapeHtml(activePatternDef.name)}. Open the Export dialog to inspect generated HTTP Link headers, sitemaps, and the systemic IT ticket.
-            </p>
-          </div>
-        `}
+          `;
+        })()}
       `;
     }
 
@@ -783,94 +927,161 @@ export function createTriagePanel(store: AppStore): HTMLElement {
     panel.querySelectorAll('.btn-prescription-opt').forEach(btn => {
       btn.addEventListener('click', () => {
         const uri = btn.getAttribute('data-uri');
-        const stateNow = store.getState();
-        const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
-        const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
-        const allQ = generateTriageQuestions(reportNow, filterNow);
-        const delegated = new Set(
-          stateNow.provenanceHistory
-            .filter(p => p.source === 'DELEGATED_IT_TICKET')
-            .map(p => p.rel.toLowerCase())
-        );
-        const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
-        const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
-        const q = qList[idx];
-        if (uri && q) {
-          store.answerQuestionWithProvenance(q.id, q.rel, uri, 'HUMAN', 'Selected from recommended options');
-          showToast('Prescription Saved', `Assigned ${q.rel} -> ${uri}`, 'info');
-          if (idx < qList.length - 1) {
-            store.setQuestionIndex(idx + 1);
-          }
+        const cardEl = btn.closest('.question-card') as HTMLElement;
+        const qId = cardEl?.getAttribute('data-question-id') || 'prescribed-rel';
+        const qRel = cardEl?.getAttribute('data-question-rel') || btn.getAttribute('data-rel') || 'describedby';
+
+        if (uri && qRel) {
+          store.answerQuestionWithProvenance(qId, qRel, uri, 'HUMAN', 'Selected from recommended options');
+          showToast('Prescription Saved', `Assigned ${qRel} -> ${uri}`, 'info');
+          const stateNow = store.getState();
+          store.setSelectedNode(null);
+          store.setQuestionIndex(stateNow.ui.activeQuestionIndex + 1);
         }
       });
     });
 
     panel.querySelector('#btn-save-answer')?.addEventListener('click', () => {
       const val = (panel.querySelector('#custom-uri-input') as HTMLInputElement)?.value.trim();
-      const stateNow = store.getState();
-      const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
-      const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
-      const allQ = generateTriageQuestions(reportNow, filterNow);
-      const delegated = new Set(
-        stateNow.provenanceHistory
-          .filter(p => p.source === 'DELEGATED_IT_TICKET')
-          .map(p => p.rel.toLowerCase())
-      );
-      const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
-      const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
-      const q = qList[idx];
-      if (val && q) {
-        store.answerQuestionWithProvenance(q.id, q.rel, val, 'HUMAN', 'Custom user input');
-        showToast('Prescription Saved', `Assigned ${q.rel} -> ${val}`, 'info');
-        if (idx < qList.length - 1) {
-          store.setQuestionIndex(idx + 1);
-        }
+      const cardEl = panel.querySelector('.question-card') as HTMLElement;
+      const qId = cardEl?.getAttribute('data-question-id') || 'custom-rel';
+      const qRel = cardEl?.getAttribute('data-question-rel') || 'describedby';
+
+      if (val && qRel) {
+        store.answerQuestionWithProvenance(qId, qRel, val, 'HUMAN', 'Custom user input');
+        showToast('Prescription Saved', `Assigned ${qRel} -> ${val}`, 'info');
+        const stateNow = store.getState();
+        store.setSelectedNode(null);
+        store.setQuestionIndex(stateNow.ui.activeQuestionIndex + 1);
       }
     });
 
     // Wire Delegate to IT Ticket Action
     panel.querySelector('#btn-delegate-ticket')?.addEventListener('click', () => {
-      const stateNow = store.getState();
-      const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
-      const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
-      const allQ = generateTriageQuestions(reportNow, filterNow);
-      const delegated = new Set(
-        stateNow.provenanceHistory
-          .filter(p => p.source === 'DELEGATED_IT_TICKET')
-          .map(p => p.rel.toLowerCase())
-      );
-      const qList = allQ.filter(q => !delegated.has(q.rel.toLowerCase()));
-      const idx = Math.min(stateNow.ui.activeQuestionIndex, Math.max(0, qList.length - 1));
-      const q = qList[idx];
-      if (q) {
+      const cardEl = panel.querySelector('.question-card') as HTMLElement;
+      const qId = cardEl?.getAttribute('data-question-id') || 'delegated-rel';
+      const qRel = cardEl?.getAttribute('data-question-rel') || 'describedby';
+
+      if (qRel) {
         store.delegateToItTicket(
-          q.id,
-          q.rel,
-          `Curator flagged rel="${q.rel}" as a systemic infrastructure requirement in IT ticket`
+          qId,
+          qRel,
+          `Curator flagged rel="${qRel}" as a systemic infrastructure requirement in IT ticket`
         );
-        showToast('Delegated to IT Ticket', `Added rel="${q.rel}" as requirement in export IT ticket.`, 'info');
-        const nextCount = qList.length - 1;
-        const nextIdx = Math.min(idx, Math.max(0, nextCount - 1));
-        store.setQuestionIndex(nextIdx);
+        showToast('Delegated to IT Ticket', `Added rel="${qRel}" as requirement in export IT ticket.`, 'info');
+        store.setSelectedNode(null);
+        const stateNow = store.getState();
+        store.setQuestionIndex(stateNow.ui.activeQuestionIndex + 1);
       }
     });
 
     panel.querySelector('#btn-prev-q')?.addEventListener('click', () => {
       const idx = store.getState().ui.activeQuestionIndex;
+      store.setSelectedNode(null);
       store.setQuestionIndex(Math.max(0, idx - 1));
     });
     panel.querySelector('#btn-next-q')?.addEventListener('click', () => {
       const idx = store.getState().ui.activeQuestionIndex;
+      store.setSelectedNode(null);
       store.setQuestionIndex(idx + 1);
     });
     panel.querySelector('#btn-skip-q')?.addEventListener('click', () => {
       const idx = store.getState().ui.activeQuestionIndex;
+      store.setSelectedNode(null);
       store.setQuestionIndex(idx + 1);
       showToast('Question Skipped', 'Moved to next triage item. Gaps remain in review matrix.', 'info');
     });
     panel.querySelector('#btn-undo')?.addEventListener('click', () => {
       store.undo();
       showToast('Action Reverted', 'Reverted previous triage answer.', 'info');
+    });
+
+    // Wire Interactive Relations in Provenance Matrix
+    panel.querySelectorAll('.btn-goto-rel, .provenance-row-interactive').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (el.tagName === 'TR' && (e.target as HTMLElement).closest('.btn-goto-rel')) return;
+        const rel = el.getAttribute('data-rel');
+        if (!rel) return;
+        const stateNow = store.getState();
+        const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
+        const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
+        const allQ = generateTriageQuestions(reportNow, filterNow);
+        const qIdx = allQ.findIndex(q => q.rel.toLowerCase() === rel.toLowerCase());
+        const existingLink = stateNow.links.find(l => l.rel.toLowerCase() === rel.toLowerCase());
+        if (existingLink) {
+          store.setSelectedNode(existingLink.target);
+        } else {
+          store.setSelectedNode(`ghost-${rel}`);
+        }
+        if (qIdx >= 0) {
+          store.setQuestionIndex(qIdx);
+        }
+        store.toggleIntakeReview(false);
+        showToast('Question Focused', `Navigated to rel="${rel}"`, 'info');
+      });
+    });
+
+    // Wire Interactive HUD Relation Chips
+    panel.querySelectorAll('.hud-rel-chip.clickable').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const rel = chip.getAttribute('data-rel');
+        if (!rel) return;
+        const stateNow = store.getState();
+        const reportNow = evaluateHealthAndGaps(stateNow.seedUri, stateNow.links, stateNow.smartInference);
+        const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
+        const allQ = generateTriageQuestions(reportNow, filterNow);
+        const qIdx = allQ.findIndex(q => q.rel.toLowerCase() === rel.toLowerCase());
+        const existingLink = stateNow.links.find(l => l.rel.toLowerCase() === rel.toLowerCase());
+        if (existingLink) {
+          store.setSelectedNode(existingLink.target);
+        } else {
+          store.setSelectedNode(`ghost-${rel}`);
+        }
+        if (qIdx >= 0) {
+          store.setQuestionIndex(qIdx);
+        }
+        store.toggleIntakeReview(false);
+        showToast('Relation Focused', `Navigated to rel="${rel}"`, 'info');
+      });
+    });
+
+    // Wire Node Inspector Actions
+    panel.querySelectorAll('#btn-inspector-close').forEach(btn => {
+      btn.addEventListener('click', () => {
+        store.setSelectedNode(null);
+      });
+    });
+
+    panel.querySelector('#btn-inspector-save')?.addEventListener('click', () => {
+      const val = (panel.querySelector('#inspector-uri-input') as HTMLInputElement)?.value.trim();
+      const stateNow = store.getState();
+      const inspectedLink = stateNow.ui.selectedNodeId ? stateNow.links.find(l => l.target === stateNow.ui.selectedNodeId) : null;
+      if (val && inspectedLink) {
+        store.answerQuestionWithProvenance('inspector-edit', inspectedLink.rel, val, 'HUMAN', 'Updated via Node Inspector');
+        store.setSelectedNode(val);
+        showToast('Node Updated', `Assigned ${inspectedLink.rel} -> ${val}`, 'success');
+      }
+    });
+
+    panel.querySelector('#btn-inspector-remove')?.addEventListener('click', () => {
+      const stateNow = store.getState();
+      const inspectedLink = stateNow.ui.selectedNodeId ? stateNow.links.find(l => l.target === stateNow.ui.selectedNodeId) : null;
+      if (inspectedLink) {
+        store.removeLink(inspectedLink.target);
+        store.setSelectedNode(null);
+        showToast('Link Removed', `Removed relation rel="${inspectedLink.rel}" from ER graph.`, 'info');
+      }
+    });
+
+    panel.querySelector('#btn-reextract-seed')?.addEventListener('click', async () => {
+      const stateNow = store.getState();
+      store.setSelectedNode(null);
+      await runDiagnosisForUri(stateNow.seedUri);
+    });
+
+    panel.querySelector('#btn-restart-queue')?.addEventListener('click', () => {
+      store.setQuestionIndex(0);
+      store.setSelectedNode(null);
     });
   }
 

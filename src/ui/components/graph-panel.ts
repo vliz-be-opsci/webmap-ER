@@ -48,6 +48,7 @@ export function createGraphPanel(store: AppStore): HTMLElement {
     });
 
     currentSvg = renderSvgGraph(container, model, (nodeId) => {
+      store.setSelectedNode(nodeId);
       if (nodeId.startsWith('ghost-')) {
         const rel = nodeId.replace('ghost-', '');
         const activeFilter = state.activePatternId && state.activePatternId !== 'ALL' ? state.activePatternId : undefined;
@@ -57,12 +58,15 @@ export function createGraphPanel(store: AppStore): HTMLElement {
           store.setQuestionIndex(qIdx);
           showToast('Prescription Focused', `Navigated to question for rel="${rel}"`, 'info');
         } else {
-          showToast('Missing Relation', `Pattern prescription required for rel="${rel}"`, 'warning');
+          showToast('Missing Relation', `Prescription card opened for rel="${rel}"`, 'info');
         }
+      } else if (nodeId === state.seedUri) {
+        showToast('Seed Inspected', 'Inspecting root target seed resource.', 'info');
       } else {
-        showToast('Node Inspected', nodeId, 'info');
+        const link = state.links.find(l => l.target === nodeId);
+        showToast('Node Inspected', `Inspecting rel="${link?.rel || 'node'}" in left panel.`, 'info');
       }
-    });
+    }, state.ui.selectedNodeId);
 
     // Wire Toolbar Controls
     panel.querySelector('#btn-toggle-ghost-links')?.addEventListener('click', () => {
