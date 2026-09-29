@@ -56,9 +56,9 @@ export function createHeader(store: AppStore, onOpenTutorial: () => void, onOpen
         <span class="btn-text-full">Export & IT Ticket</span>
         <span class="btn-text-short">Export</span>
       </button>
-      <button id="btn-share" class="btn btn-secondary" title="Copy Shareable Permalink">
+      <button id="btn-share" class="btn btn-secondary" title="Copy Share Session Link">
         ${iconLink('', 15)}
-        <span class="btn-text-full">Copy Permalink</span>
+        <span class="btn-text-full">Copy share session link</span>
         <span class="btn-text-short">Share</span>
       </button>
       <button id="btn-theme-toggle" class="btn btn-icon" title="Toggle Light / Dark Theme" aria-label="Toggle theme">
@@ -148,7 +148,7 @@ export function createHeader(store: AppStore, onOpenTutorial: () => void, onOpen
         copied = true;
       } catch {}
     }
-    showToast('Permalink Copied', 'Session link copied to clipboard.', 'success');
+    showToast('Session Link Copied', 'Share session link copied to clipboard.', 'success');
   });
 
   return header;
