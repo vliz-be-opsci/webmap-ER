@@ -1,5 +1,18 @@
-import type { AppState, RelationProvenance } from './store';
+import type { AppState, RelationProvenance, IntakeSummaryState } from './store';
 import type { DiscoveredLink } from '../wrx/types';
+
+export interface CondensedIntakeSummary {
+  p: string; // recommendedPatternId
+  c: 'high' | 'medium' | 'low'; // confidence
+  s: number; // scorePercent
+  k: number; // skippedCount
+  t: number; // totalCount
+  a: Array<{
+    t: string; // target
+    s: 'SUCCESS' | 'CORS_RESTRICTED' | 'NOT_FOUND' | 'ERROR'; // status
+    m?: string; // message
+  }>;
+}
 
 export interface SessionSnapshot {
   v: 1; // schema version
@@ -16,6 +29,7 @@ export interface SessionSnapshot {
     s: string; // source
     e?: string; // evidence
   }>;
+  is?: CondensedIntakeSummary; // condensed intake summary
   ui?: {
     m?: 'balanced' | 'extended-triage' | 'extended-graph';
     q?: number;
@@ -39,12 +53,29 @@ export function stateToSnapshot(state: AppState): SessionSnapshot {
     }))
     .sort((a, b) => a.r.localeCompare(b.r) || a.t.localeCompare(b.t));
 
+  let condensedIntake: CondensedIntakeSummary | undefined;
+  if (state.intakeSummary) {
+    condensedIntake = {
+      p: state.intakeSummary.recommendedPatternId,
+      c: state.intakeSummary.confidence,
+      s: state.intakeSummary.scorePercent,
+      k: state.intakeSummary.skippedCount,
+      t: state.intakeSummary.totalCount,
+      a: (state.intakeSummary.auditLog || []).map(item => ({
+        t: item.target,
+        s: item.status as any,
+        ...(item.message ? { m: item.message } : {})
+      }))
+    };
+  }
+
   const snapshot: SessionSnapshot = {
     v: 1,
     u: state.seedUri || '',
     p: state.activePatternId || 'PT-01',
     l: sortedLinks,
     pr: sortedProvenance,
+    ...(condensedIntake ? { is: condensedIntake } : {}),
     ui: {
       m: state.ui?.viewMode || 'balanced',
       q: state.ui?.activeQuestionIndex || 0,
@@ -71,12 +102,30 @@ export function snapshotToState(snapshot: SessionSnapshot): Partial<AppState> {
     timestamp: 0
   }));
 
+  let intakeSummary: IntakeSummaryState | undefined;
+  if (snapshot.is) {
+    intakeSummary = {
+      recommendedPatternId: snapshot.is.p,
+      confidence: snapshot.is.c,
+      scorePercent: snapshot.is.s,
+      rationale: `Restored session intake audit (${snapshot.is.p})`,
+      skippedCount: snapshot.is.k,
+      totalCount: snapshot.is.t,
+      auditLog: (snapshot.is.a || []).map(item => ({
+        target: item.t,
+        status: item.s,
+        message: item.m || ''
+      }))
+    };
+  }
+
   return {
     version: 1,
     seedUri: snapshot.u || '',
     activePatternId: snapshot.p || 'PT-01',
     links,
     provenanceHistory,
+    intakeSummary,
     ui: {
       viewMode: snapshot.ui?.m || 'balanced',
       activeQuestionIndex: snapshot.ui?.q || 0,

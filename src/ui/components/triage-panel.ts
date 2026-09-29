@@ -153,26 +153,27 @@ export function createTriagePanel(store: AppStore): HTMLElement {
       }
     });
 
-    const intakeSummaryHtml = intakeSummary ? `
+    const hasProvenanceOrIntake = !!intakeSummary || state.provenanceHistory.length > 0;
+    const intakeSummaryHtml = hasProvenanceOrIntake ? `
       <div class="provenance-audit-strip">
         <div class="provenance-audit-header">
           <div class="provenance-audit-title">
             <span class="smart-badge-icon">${iconSparkles('', 14)}</span>
-            <span>Deduced Pattern: <strong>${intakeSummary.recommendedPatternId}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)</span>
+            <span>${intakeSummary ? `Deduced Pattern: <strong>${escapeHtml(intakeSummary.recommendedPatternId)}</strong> (${intakeSummary.confidence.toUpperCase()} CONFIDENCE)` : `Pattern &amp; Provenance Conformance: <strong>${escapeHtml(state.activePatternId)}</strong>`}</span>
           </div>
           <button id="btn-toggle-review" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem;">
             ${state.ui.showIntakeReview ? 'Hide Review' : 'View Provenance & Review'}
           </button>
         </div>
         <div class="provenance-audit-checklist">
-          ${intakeSummary.auditLog.map(audit => `
+          ${intakeSummary ? intakeSummary.auditLog.map(audit => `
             <span class="provenance-check-item ${audit.status === 'SUCCESS' ? 'status-success' : 'status-cors'}">
               <span>${audit.status === 'SUCCESS' ? '✓' : '!'}</span>
               <span>${escapeHtml(audit.target.split('/').pop() || audit.target)}: ${audit.status}</span>
             </span>
-          `).join('')}
+          `).join('') : ''}
           <span class="provenance-check-item">
-            <span>${intakeSummary.skippedCount} questions auto-resolved</span>
+            <span>${intakeSummary ? `${intakeSummary.skippedCount} questions auto-resolved` : `${state.provenanceHistory.length} relations tracked`}</span>
           </span>
         </div>
       </div>

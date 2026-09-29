@@ -114,4 +114,51 @@ describe('Deterministic Condensed Session Fragment Sharing', () => {
     expect(decoded?.seedUri).toBe('https://example.org/legacy');
     expect(decoded?.links?.[0]?.target).toBe('https://w3id.org/ro/crate/1.1');
   });
+
+  it('losslessly preserves intakeSummary, audit checklist, and showIntakeReview flag across sessions', async () => {
+    const store = new AppStore();
+    store.setSeedUri('https://portal.marine-data.org/dataset/coral-01');
+    store.setActivePatternId('PT-06');
+    store.answerQuestionWithProvenance('q1', 'item', 'https://example.org/sitemap.xml', 'AUTO_SITEMAP');
+    store.setIntakeSummary({
+      recommendedPatternId: 'PT-06',
+      confidence: 'high',
+      scorePercent: 95,
+      rationale: 'Hostwide discovery detected sitemap.xml',
+      skippedCount: 2,
+      totalCount: 3,
+      auditLog: [
+        { target: 'https://portal.marine-data.org/robots.txt', status: 'SUCCESS', message: 'Robots.txt retrieved' },
+        { target: 'https://portal.marine-data.org/sitemap.xml', status: 'SUCCESS', message: 'Sitemap parsed' }
+      ]
+    });
+    store.toggleIntakeReview(true); // User opened "View Provenance & Review" matrix
+
+    const snapshot = stateToSnapshot(store.getState());
+    expect(snapshot.is).toBeDefined();
+    expect(snapshot.is?.p).toBe('PT-06');
+    expect(snapshot.is?.c).toBe('high');
+    expect(snapshot.is?.k).toBe(2);
+    expect(snapshot.is?.a).toHaveLength(2);
+    expect(snapshot.ui?.r).toBe(true);
+
+    const fragment = await encodeSessionToFragment(store.getState());
+    const restored = await decodeFragmentToState(fragment);
+
+    expect(restored).not.toBeNull();
+    expect(restored?.intakeSummary).toBeDefined();
+    expect(restored?.intakeSummary?.recommendedPatternId).toBe('PT-06');
+    expect(restored?.intakeSummary?.confidence).toBe('high');
+    expect(restored?.intakeSummary?.skippedCount).toBe(2);
+    expect(restored?.intakeSummary?.auditLog).toHaveLength(2);
+    expect(restored?.intakeSummary?.auditLog[0].target).toContain('robots.txt');
+    expect(restored?.ui?.showIntakeReview).toBe(true);
+
+    // Verify restoring into another AppStore instance restores state completely
+    const recipientStore = new AppStore();
+    recipientStore.restoreSession(restored!);
+    expect(recipientStore.getState().intakeSummary).toBeDefined();
+    expect(recipientStore.getState().intakeSummary?.recommendedPatternId).toBe('PT-06');
+    expect(recipientStore.getState().ui.showIntakeReview).toBe(true);
+  });
 });

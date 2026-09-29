@@ -303,7 +303,8 @@ export class AppStore {
         ...(partialState.ui || {})
       },
       links: partialState.links ? [...partialState.links] : this.state.links,
-      provenanceHistory: partialState.provenanceHistory ? [...partialState.provenanceHistory] : this.state.provenanceHistory
+      provenanceHistory: partialState.provenanceHistory ? [...partialState.provenanceHistory] : this.state.provenanceHistory,
+      intakeSummary: partialState.intakeSummary !== undefined ? partialState.intakeSummary : this.state.intakeSummary
     };
     this.notify();
   }
