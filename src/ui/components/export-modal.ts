@@ -4,6 +4,7 @@ import { generateHttpHeaders } from '../../core/export/link-headers';
 import { generateSitemapXml } from '../../core/export/sitemap';
 import { generateRtTestYaml } from '../../core/export/yaml-test';
 import { generateSystemicItTicket } from '../../core/export/it-ticket';
+import { generateAgentImplementationPlan } from '../../core/export/agent-plan';
 import { iconCopy, iconClose } from '../icons';
 import { showToast } from './toast';
 
@@ -12,11 +13,12 @@ export function createExportModal(store: AppStore, onClose: () => void): HTMLEle
   modal.className = 'modal-backdrop';
 
   const state = store.getState();
-  const report = evaluateHealthAndGaps(state.seedUri, state.links);
+  const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
   const headers = generateHttpHeaders(state.links);
   const sitemap = generateSitemapXml(state.seedUri, state.links);
   const yaml = generateRtTestYaml(state.seedUri, state.links);
   const itTicket = generateSystemicItTicket(report, state.links, state.provenanceHistory);
+  const agentPlan = generateAgentImplementationPlan(report, state.links, state.provenanceHistory, state.activePatternId);
 
   modal.innerHTML = `
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -32,6 +34,9 @@ export function createExportModal(store: AppStore, onClose: () => void): HTMLEle
       <div class="modal-tabs" role="tablist" aria-label="Export Formats">
         <button class="tab-btn is-active" role="tab" id="tab-btn-ticket" aria-controls="tab-ticket" aria-selected="true" data-target="#tab-ticket">
           IT Ticket (Systemic)
+        </button>
+        <button class="tab-btn" role="tab" id="tab-btn-agent" aria-controls="tab-agent" aria-selected="false" data-target="#tab-agent">
+          LLM Agent Plan
         </button>
         <button class="tab-btn" role="tab" id="tab-btn-headers" aria-controls="tab-headers" aria-selected="false" data-target="#tab-headers">
           HTTP Link Headers
@@ -53,6 +58,17 @@ export function createExportModal(store: AppStore, onClose: () => void): HTMLEle
           <button class="btn btn-primary btn-copy" data-text="${encodeURIComponent(itTicket)}">
             ${iconCopy('', 15)}
             <span>Copy IT Ticket Markdown</span>
+          </button>
+        </div>
+
+        <div id="tab-agent" class="tab-pane" role="tabpanel" aria-labelledby="tab-btn-agent" style="display: none;">
+          <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            Agnostic, step-by-step implementation prompt and plan ready to provide to an autonomous coding agent (Cursor, Aider, Claude, Devin).
+          </p>
+          <pre class="code-block"><code>${escapeHtml(agentPlan)}</code></pre>
+          <button class="btn btn-primary btn-copy" data-text="${encodeURIComponent(agentPlan)}">
+            ${iconCopy('', 15)}
+            <span>Copy Agent Implementation Plan</span>
           </button>
         </div>
 

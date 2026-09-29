@@ -10,9 +10,19 @@ describe('Modal Dialogs & Remediation Code Blocks', () => {
     const modal = createExportModal(store, () => {});
     
     expect(modal.querySelector('[role="tablist"]')).not.toBeNull();
-    expect(modal.querySelectorAll('[role="tab"]').length).toBe(4);
+    expect(modal.querySelectorAll('[role="tab"]').length).toBe(5);
+    expect(modal.querySelector('#tab-btn-agent')).not.toBeNull();
+    expect(modal.querySelector('#tab-agent')).not.toBeNull();
+    expect(modal.querySelector('#tab-agent .btn-copy')).not.toBeNull();
     expect(modal.innerHTML).not.toContain('📋');
     expect(modal.innerHTML).not.toContain('✕'); // uses SVG close icon
+
+    // Tab switching to agent plan
+    const agentTabBtn = modal.querySelector('#tab-btn-agent') as HTMLElement;
+    agentTabBtn.click();
+    expect(agentTabBtn.classList.contains('is-active')).toBe(true);
+    expect((modal.querySelector('#tab-agent') as HTMLElement).style.display).toBe('block');
+    expect((modal.querySelector('#tab-ticket') as HTMLElement).style.display).toBe('none');
   });
 
   it('should render tutorial modal with clinical workflow diagram and no emojis', () => {
