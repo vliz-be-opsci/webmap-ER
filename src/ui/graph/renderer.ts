@@ -338,7 +338,7 @@ export function renderSvgGraph(
 
     const isResource = node.type === 'resource';
     const isGhost = !!node.isGhost;
-    const isSelected = !!selectedNodeId && (node.id === selectedNodeId || (isGhost && selectedNodeId === `ghost-${node.rel}`));
+    const isSelected = !!selectedNodeId && (node.id === selectedNodeId || (Boolean(node.rel) && selectedNodeId === `ghost-${node.rel}`));
 
     g.setAttribute('class', `graph-node ${isSelected ? 'selected' : ''}`);
 

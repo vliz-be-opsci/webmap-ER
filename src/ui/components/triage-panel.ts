@@ -663,12 +663,14 @@ export function createTriagePanel(store: AppStore): HTMLElement {
               isNodeFocused = true;
             } else {
               const existingProv = state.provenanceHistory.find(p => p.rel.toLowerCase() === ghostRelMatch.toLowerCase());
+              const existingLink = state.links.find(l => l.rel.toLowerCase() === ghostRelMatch.toLowerCase());
+              const currentVal = existingProv?.targetUri || existingLink?.target;
               qToRender = buildQuestionForRelation(
                 ghostRelMatch,
                 state.activePatternId,
                 report,
                 undefined,
-                existingProv?.targetUri
+                currentVal
               );
               isNodeFocused = true;
             }
@@ -676,7 +678,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
 
           if (qToRender) {
             return `
-              <div class="question-card severity-${qToRender.severity.toLowerCase()} ${isNodeFocused ? 'highlight-focused-node' : ''}" data-question-id="${escapeHtml(qToRender.id)}" data-question-rel="${escapeHtml(qToRender.rel)}">
+              <div class="question-card severity-${qToRender.severity.toLowerCase()} ${isNodeFocused ? 'highlight-focused-node' : ''}" data-question-id="${escapeHtml(qToRender.id)}" data-question-rel="${escapeHtml(qToRender.rel)}" id="active-question-card">
                 <div class="card-header-meta">
                   <span class="card-step-badge">
                     ${isNodeFocused ? `FOCUSED GAP: rel="${escapeHtml(qToRender.rel)}"` : `QUESTION ${activeIdx + 1} OF ${questions.length}`}
@@ -1007,17 +1009,24 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
         const allQ = generateTriageQuestions(reportNow, filterNow);
         const qIdx = allQ.findIndex(q => q.rel.toLowerCase() === rel.toLowerCase());
-        const existingLink = stateNow.links.find(l => l.rel.toLowerCase() === rel.toLowerCase());
-        if (existingLink) {
-          store.setSelectedNode(existingLink.target);
-        } else {
-          store.setSelectedNode(`ghost-${rel}`);
-        }
+        
+        // Focus the question card for this relation
+        store.setSelectedNode(`ghost-${rel}`);
         if (qIdx >= 0) {
           store.setQuestionIndex(qIdx);
         }
-        store.toggleIntakeReview(false);
+        // Deliberately keep accordion open (do not call toggleIntakeReview)
         showToast('Question Focused', `Navigated to rel="${rel}"`, 'info');
+
+        // Scroll down to the question card
+        const targetCard = panel.querySelector('#active-question-card') || panel.querySelector('.question-card, .node-inspector-card');
+        if (targetCard) {
+          if (typeof targetCard.scrollIntoView === 'function') {
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            panel.scrollTop = (targetCard as HTMLElement).offsetTop || 0;
+          }
+        }
       });
     });
 
@@ -1031,17 +1040,22 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         const filterNow = stateNow.activePatternId && stateNow.activePatternId !== 'ALL' ? stateNow.activePatternId : undefined;
         const allQ = generateTriageQuestions(reportNow, filterNow);
         const qIdx = allQ.findIndex(q => q.rel.toLowerCase() === rel.toLowerCase());
-        const existingLink = stateNow.links.find(l => l.rel.toLowerCase() === rel.toLowerCase());
-        if (existingLink) {
-          store.setSelectedNode(existingLink.target);
-        } else {
-          store.setSelectedNode(`ghost-${rel}`);
-        }
+
+        store.setSelectedNode(`ghost-${rel}`);
         if (qIdx >= 0) {
           store.setQuestionIndex(qIdx);
         }
-        store.toggleIntakeReview(false);
         showToast('Relation Focused', `Navigated to rel="${rel}"`, 'info');
+
+        // Scroll down to the question card
+        const targetCard = panel.querySelector('#active-question-card') || panel.querySelector('.question-card, .node-inspector-card');
+        if (targetCard) {
+          if (typeof targetCard.scrollIntoView === 'function') {
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            panel.scrollTop = (targetCard as HTMLElement).offsetTop || 0;
+          }
+        }
       });
     });
 

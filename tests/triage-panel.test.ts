@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AppStore } from '../src/core/state/store';
 import { createTriagePanel } from '../src/ui/components/triage-panel';
 
@@ -120,7 +120,10 @@ describe('Triage Panel Telemetry HUD & Questionnaire', () => {
     expect(store.getState().ui.activeQuestionIndex).toBe(initialIdx + 1);
   });
 
-  it('should navigate to question when clicking relation button in Provenance Review Matrix', () => {
+  it('should navigate to question without closing Provenance Review Matrix accordion and scroll down', () => {
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+
     const store = new AppStore();
     store.setSeedUri('https://example.org/dataset');
     store.setActivePatternId('PT-04');
@@ -132,8 +135,25 @@ describe('Triage Panel Telemetry HUD & Questionnaire', () => {
     expect(relBtn).not.toBeNull();
 
     relBtn.click();
-    // Should close matrix and focus relation
-    expect(store.getState().ui.showIntakeReview).toBe(false);
-    expect(store.getState().ui.selectedNodeId).toContain('describedby');
+    // Accordion must NOT close; showIntakeReview remains true
+    expect(store.getState().ui.showIntakeReview).toBe(true);
+    expect(panel.querySelector('.provenance-review-matrix')).not.toBeNull();
+    expect(store.getState().ui.selectedNodeId).toBe('ghost-describedby');
+
+    const questionCard = panel.querySelector('#active-question-card, .question-card') as HTMLElement;
+    expect(questionCard).not.toBeNull();
+    expect(questionCard.getAttribute('data-question-rel')).toBe('describedby');
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+
+    // Also test clicking interactive row directly for cite-as
+    const citeRow = panel.querySelector('.provenance-row-interactive[data-rel="cite-as"]') as HTMLElement;
+    expect(citeRow).not.toBeNull();
+    citeRow.click();
+
+    expect(store.getState().ui.showIntakeReview).toBe(true);
+    expect(store.getState().ui.selectedNodeId).toBe('ghost-cite-as');
+    const updatedCard = panel.querySelector('#active-question-card, .question-card') as HTMLElement;
+    expect(updatedCard.getAttribute('data-question-rel')).toBe('cite-as');
+    expect(scrollSpy).toHaveBeenCalledTimes(2);
   });
 });

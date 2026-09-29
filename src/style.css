@@ -415,6 +415,7 @@ body {
 .triage-panel {
   padding: 1.25rem;
   overflow-y: auto;
+  scroll-behavior: smooth;
   border-right: 1px solid var(--border-subtle);
   background-color: var(--surface-canvas);
   transition: width var(--transition-normal);
