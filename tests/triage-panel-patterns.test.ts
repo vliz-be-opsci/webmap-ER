@@ -4,7 +4,7 @@ import { AppStore } from '../src/core/state/store';
 import { createTriagePanel } from '../src/ui/components/triage-panel';
 
 describe('Triage Panel Pattern Matrix & Smart Guidance', () => {
-  it('should render the Pattern Matrix Strip with badges for PT-01 to PT-08 when resource URI is provided', () => {
+  it('should render the Pattern Matrix Strip with badges for PT-01 to PT-09 when resource URI is provided', () => {
     const store = new AppStore();
     store.setSeedUri('https://example.org/dataset');
     const panel = createTriagePanel(store);
@@ -12,7 +12,7 @@ describe('Triage Panel Pattern Matrix & Smart Guidance', () => {
     const matrix = panel.querySelector('.pattern-matrix-strip');
     expect(matrix).not.toBeNull();
     const badges = matrix?.querySelectorAll('.pattern-badge');
-    expect(badges?.length).toBe(8);
+    expect(badges?.length).toBe(9);
   });
 
   it('should render the Hostwide Sitemap card when PT-06 pattern is selected', () => {

@@ -10,7 +10,7 @@ describe('Didactic Triage Engine', () => {
     expect(report.score).toBeLessThan(60);
     expect(report.gaps.some(g => g.rel === 'profile')).toBe(true);
     expect(report.gaps.some(g => g.rel === 'cite-as')).toBe(true);
-    expect(report.patterns.length).toBe(8);
+    expect(report.patterns.length).toBe(9);
   });
 
   it('should generate didactic questions with explanatory context', () => {

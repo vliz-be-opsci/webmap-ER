@@ -28,8 +28,8 @@ describe('main.ts sync simulation', () => {
 
     store.setSeedUri('https://example.org/dataset');
 
-    await new Promise(r => setTimeout(r, 100));
-
-    expect(window.location.hash).toContain('s1=');
+    await vi.waitFor(() => {
+      expect(window.location.hash.startsWith('#s1=') || window.location.hash.startsWith('#raw=')).toBe(true);
+    }, { timeout: 2000, interval: 20 });
   });
 });

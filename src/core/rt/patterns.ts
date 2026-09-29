@@ -133,6 +133,21 @@ export const RT_PATTERNS: RTPatternDef[] = [
     ],
     docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-08-external-linksets',
     grmpTestType: 'PT-08'
+  },
+  {
+    id: 'PT-09',
+    rtCode: 'RT-P09',
+    name: 'Release Linking & Version Navigation',
+    summary: 'Navigates release lifecycles and dataset versions via RFC 5829 relations (latest-version, predecessor-version, successor-version, version-history).',
+    roles: ['series', 'latest_version', 'version_history', 'release'],
+    requiredRelations: ['latest-version'],
+    recommendedRelations: ['predecessor-version', 'successor-version', 'version-history'],
+    standards: [
+      { label: 'RFC 5829 (Versioning Links)', url: 'https://datatracker.ietf.org/doc/html/rfc5829' },
+      { label: 'W3C DCAT-3 (Version Chains)', url: 'https://www.w3.org/TR/vocab-dcat-3/#Class:Dataset' }
+    ],
+    docUrl: 'https://github.com/eosc-semantic-interop/if-solutions-proposals/tree/main/proposals/radical-transparency/linkset-usage-patterns#pt-09-versioning',
+    grmpTestType: 'PT-09'
   }
 ];
 

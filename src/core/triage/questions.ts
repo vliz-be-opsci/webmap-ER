@@ -399,6 +399,70 @@ export function buildQuestionForRelation(
         currentValue
       };
 
+    case 'latest-version':
+      return {
+        id: qId,
+        rel: 'latest-version',
+        patternId,
+        severity: severity || 'CRITICAL',
+        title: `Declare Canonical Latest Version (${patternId})`,
+        prompt: 'What is the URI of the most recent, authoritative release or latest version of this dataset series?',
+        didacticText: customDidactic || 'RFC 5829 latest-version allows automated harvesting pipelines to identify and jump directly to the freshest dataset iteration.',
+        implementationGuidance: 'To implement: Announce the latest iteration using `Link: <https://example.org/dataset/v2.1>; rel="latest-version"`.',
+        quickOptions: [
+          { label: 'Latest Release Endpoint', uri: safeUrl(report.targetUrl, '/latest') }
+        ],
+        inputPlaceholder: 'https://example.org/dataset/v2.1',
+        currentValue
+      };
+
+    case 'predecessor-version':
+      return {
+        id: qId,
+        rel: 'predecessor-version',
+        patternId,
+        severity: severity || 'RECOMMENDED',
+        title: `Link Prior Release / Predecessor Version (${patternId})`,
+        prompt: 'What was the immediately preceding release or version of this dataset?',
+        didacticText: customDidactic || 'RFC 5829 predecessor-version forms an immutable provenance chain tracing historical revisions.',
+        implementationGuidance: 'To implement: Point to the ancestor release via `Link: <https://example.org/dataset/v1.0>; rel="predecessor-version"`.',
+        quickOptions: [],
+        inputPlaceholder: 'https://example.org/dataset/v1.0',
+        currentValue
+      };
+
+    case 'successor-version':
+      return {
+        id: qId,
+        rel: 'successor-version',
+        patternId,
+        severity: severity || 'RECOMMENDED',
+        title: `Link Subsequent Release / Successor Version (${patternId})`,
+        prompt: 'What newer revision superseded this version?',
+        didacticText: customDidactic || 'RFC 5829 successor-version warns agents and researchers that a newer revision supersedes this record.',
+        implementationGuidance: 'To implement: Declare superseding release via `Link: <https://example.org/dataset/v2.0>; rel="successor-version"`.',
+        quickOptions: [],
+        inputPlaceholder: 'https://example.org/dataset/v2.0',
+        currentValue
+      };
+
+    case 'version-history':
+      return {
+        id: qId,
+        rel: 'version-history',
+        patternId,
+        severity: severity || 'RECOMMENDED',
+        title: `Attach Changelog / Version History (${patternId})`,
+        prompt: 'Where is the machine-readable version history, changelog, or release ledger located?',
+        didacticText: customDidactic || 'RFC 5829 version-history directs consumers to complete release ledgers detailing schema and data alterations.',
+        implementationGuidance: 'To implement: Expose version history via `Link: <https://example.org/dataset/history>; rel="version-history"`.',
+        quickOptions: [
+          { label: 'Release History Endpoint', uri: safeUrl(report.targetUrl, '/history') }
+        ],
+        inputPlaceholder: 'https://example.org/dataset/history',
+        currentValue
+      };
+
     default:
       return {
         id: qId,

@@ -16,7 +16,7 @@ export function createExportModal(store: AppStore, onClose: () => void): HTMLEle
   const report = evaluateHealthAndGaps(state.seedUri, state.links, state.smartInference);
   const headers = generateHttpHeaders(state.links);
   const sitemap = generateSitemapXml(state.seedUri, state.links);
-  const yaml = generateRtTestYaml(state.seedUri, state.links);
+  const yaml = generateRtTestYaml(state.seedUri, state.links, state.activePatternId);
   const itTicket = generateSystemicItTicket(report, state.links, state.provenanceHistory);
   const agentPlan = generateAgentImplementationPlan(report, state.links, state.provenanceHistory, state.activePatternId);
 

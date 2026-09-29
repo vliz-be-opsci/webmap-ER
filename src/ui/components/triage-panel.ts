@@ -294,7 +294,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
             <div class="intake-hero-text">
               <h3 class="intake-hero-title">Target Seed Resource Required</h3>
               <p class="intake-hero-desc">
-                Provide a dataset, web service, or metadata landing page URI above to initiate automated wrx inspection and triage against the 8 Radical Transparency patterns.
+                Provide a dataset, web service, or metadata landing page URI above to initiate automated wrx inspection and triage against the 9 Radical Transparency patterns.
               </p>
             </div>
           </div>
@@ -472,7 +472,7 @@ export function createTriagePanel(store: AppStore): HTMLElement {
         </section>
 
         <!-- Pattern Matrix Strip -->
-        <div class="pattern-matrix-strip" role="group" aria-label="Radical Transparency 8-Pattern Matrix">
+        <div class="pattern-matrix-strip" role="group" aria-label="Radical Transparency 9-Pattern Matrix">
           ${report.patterns.map(p => {
             const isActive = state.activePatternId === p.patternId;
             const badgeClass = p.status === 'SATISFIED' ? 'badge-satisfied' : p.status === 'PARTIAL' ? 'badge-partial' : 'badge-unmet';

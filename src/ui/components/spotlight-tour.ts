@@ -28,13 +28,14 @@ const SPOTLIGHT_STEPS: SpotlightStep[] = [
   },
   {
     targetSelector: '.pattern-matrix-strip',
-    title: '2. The 8-Pattern Conformance Matrix',
+    title: '2. The 9-Pattern Conformance Matrix',
     lead: 'Pattern Applicability & Filtering',
-    body: '<strong>Crucial Architecture Principle: Not every URI needs to conform to all 8 patterns!</strong><br/><br/>' +
+    body: '<strong>Crucial Architecture Principle: Not every URI needs to conform to all 9 patterns!</strong><br/><br/>' +
       '• <strong>Landing pages & dataset files:</strong> Focus on <code>PT-01</code> (Functional Profile) and <code>PT-04</code> (Direct Metadata & PID).<br/>' +
       '• <strong>Data distributions:</strong> Focus on <code>PT-03</code> (Format & profile content negotiation).<br/>' +
       '• <strong>Catalogs & repositories:</strong> Focus on <code>PT-06</code> (Hostwide Sitemaps) and <code>PT-07</code> (Catalog assistance).<br/>' +
-      '• <strong>APIs & query services:</strong> Focus on <code>PT-05</code> (Subsetting APIs).<br/><br/>' +
+      '• <strong>APIs & query services:</strong> Focus on <code>PT-05</code> (Subsetting APIs).<br/>' +
+      '• <strong>Versioned datasets:</strong> Focus on <code>PT-09</code> (Release linking & version lifecycle).<br/><br/>' +
       'Click any pattern badge in the matrix to filter questions and graph projections to that specific pattern.',
     iconSvg: iconListChecks('', 20)
   },

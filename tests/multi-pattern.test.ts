@@ -11,7 +11,7 @@ describe('Comprehensive 8-Pattern RT Diagnostic Engine', () => {
     ];
 
     const report = evaluateHealthAndGaps('https://example.org/dataset', links);
-    expect(report.patterns.length).toBe(8);
+    expect(report.patterns.length).toBe(9);
 
     const pt01 = report.patterns.find(p => p.patternId === 'PT-01');
     expect(pt01?.status).toBe('SATISFIED');
@@ -22,6 +22,10 @@ describe('Comprehensive 8-Pattern RT Diagnostic Engine', () => {
     const pt05 = report.patterns.find(p => p.patternId === 'PT-05');
     expect(pt05?.status).toBe('UNSATISFIED');
     expect(pt05?.missingRequired).toContain('service-desc');
+
+    const pt09 = report.patterns.find(p => p.patternId === 'PT-09');
+    expect(pt09?.status).toBe('UNSATISFIED');
+    expect(pt09?.missingRequired).toContain('latest-version');
   });
 
   it('should mark PT-05 as SATISFIED when service-desc is present', () => {
@@ -42,5 +46,15 @@ describe('Comprehensive 8-Pattern RT Diagnostic Engine', () => {
     const report = evaluateHealthAndGaps('https://example.org/res', links);
     const pt08 = report.patterns.find(p => p.patternId === 'PT-08');
     expect(pt08?.status).toBe('SATISFIED');
+  });
+
+  it('should mark PT-09 as SATISFIED when latest-version is present', () => {
+    const links: DiscoveredLink[] = [
+      { target: 'https://example.org/dataset/v2.1', rel: 'latest-version', source: 'link-header' }
+    ];
+
+    const report = evaluateHealthAndGaps('https://example.org/dataset', links);
+    const pt09 = report.patterns.find(p => p.patternId === 'PT-09');
+    expect(pt09?.status).toBe('SATISFIED');
   });
 });

@@ -45,9 +45,9 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     stepNumber: 4,
-    title: 'The 8-Pattern RT Conformance Matrix',
-    lead: 'Full Coverage Across PT-01 to PT-08',
-    body: 'The Telemetry HUD and Pattern Matrix Strip audit adherence across all 8 EOSC Radical Transparency patterns: profile conformity, composition, content negotiation, direct metadata, subsetting APIs, hostwide sitemaps, catalog assistance, and external linksets.',
+    title: 'The 9-Pattern RT Conformance Matrix',
+    lead: 'Full Coverage Across PT-01 to PT-09',
+    body: 'The Telemetry HUD and Pattern Matrix Strip audit adherence across all 9 EOSC Radical Transparency patterns: profile conformity, composition, content negotiation, direct metadata, subsetting APIs, hostwide sitemaps, catalog assistance, external linksets, and versioned release lifecycles.',
     iconSvg: iconListChecks('', 24),
     iconColor: 'var(--clinical-cobalt)'
   },
