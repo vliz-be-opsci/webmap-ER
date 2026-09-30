@@ -5,6 +5,7 @@ import { createGraphPanel } from './components/graph-panel';
 import { createExportModal } from './components/export-modal';
 import { createSpotlightTour } from './components/spotlight-tour';
 import { createToastContainer, showToast } from './components/toast';
+import { createFooter } from './components/footer';
 import { SAMPLE_PRESETS } from '../core/rt/presets';
 
 export function initLayout(container: HTMLElement, store: AppStore): void {
@@ -45,6 +46,7 @@ export function initLayout(container: HTMLElement, store: AppStore): void {
 
   container.appendChild(header);
   container.appendChild(splitContainer);
+  container.appendChild(createFooter());
 
   // Sync view modes
   store.subscribe(state => {
